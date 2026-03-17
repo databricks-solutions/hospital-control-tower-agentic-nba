@@ -1,5 +1,13 @@
-*conf*.json
-.DS_Store
-__pycache__
-.idea/
+node_modules/
+__pycache__/
+*.pyc
 .env
+.env.*
+.DS_Store
+dist/
+*.log
+.ai-dev-kit/
+.cursor/
+.github/skills/
+.vscode/
+app/app.yaml

@@ -1,0 +1,85 @@
+INVESTMENT POLICY STATEMENT (IPS)
+Document ID: IPS-001
+Effective Date: 2024-01-15
+Last Review: 2025-06-01
+Owner: Chief Investment Officer
+
+1. PURPOSE AND SCOPE
+
+This Investment Policy Statement establishes the investment objectives, guidelines, and constraints for the Medical Grants Investment Portfolio. It applies to all managed fund allocations, new investments, and portfolio rebalancing activities.
+
+2. INVESTMENT OBJECTIVES
+
+2.1 Primary Objective: Achieve a net-of-fees total return that exceeds the blended benchmark by 150-200 basis points annually over a rolling 5-year period.
+
+2.2 Secondary Objective: Maintain sufficient liquidity to meet annual grant disbursement requirements (estimated at 5-7% of total portfolio value annually).
+
+2.3 Risk Tolerance: Moderate. Maximum drawdown target of 15% in any rolling 12-month period. Portfolio volatility target of 8-12% annualized.
+
+3. ASSET ALLOCATION GUIDELINES
+
+3.1 Strategic Allocation Targets:
+- Public Equity: 30-40% (target 35%)
+- Private Credit: 20-30% (target 25%)
+- Venture Capital: 10-20% (target 15%)
+- Real Assets: 5-15% (target 10%)
+- Hedge Funds: 5-15% (target 10%)
+- Cash/Short-term: 2-5% (target 5%)
+
+3.2 Rebalancing Policy: Rebalance when any asset class deviates more than 5 percentage points from its target allocation. Quarterly review required.
+
+3.3 Concentration Limits:
+- No single fund to exceed 10% of total portfolio
+- No single manager to exceed 15% of total portfolio
+- Top-5 fund concentration must not exceed 40% of any strategy segment
+
+4. MANAGER SELECTION CRITERIA
+
+4.1 Minimum Qualifications:
+- Track record of 3+ years with audited returns
+- AUM of at least $100M
+- Registered with appropriate regulatory bodies
+- Annual independent audit requirement
+
+4.2 Evaluation Factors:
+- Risk-adjusted returns (Sharpe ratio > 0.8 preferred)
+- Consistency of returns across market cycles
+- Team stability and key-person risk assessment
+- Operational due diligence (ODD) pass required
+- ESG integration capabilities
+
+5. LIQUIDITY MANAGEMENT
+
+5.1 Liquidity Reserve: Maintain minimum 12 months of projected grant disbursements in liquid assets (Monthly or Quarterly redemption terms).
+
+5.2 Illiquidity Budget: No more than 35% of total portfolio in locked or annual-redemption vehicles.
+
+5.3 Capital Call Management: Maintain unfunded commitment reserve of at least 110% of projected 12-month capital calls.
+
+6. RISK MANAGEMENT
+
+6.1 Monitoring Frequency: Weekly NAV monitoring, monthly performance attribution, quarterly risk assessment.
+
+6.2 Watchlist Criteria: Place fund on watchlist if:
+- Returns underperform benchmark by >300bps for 2 consecutive quarters
+- Key-person departure
+- Regulatory action or compliance issue
+- AUM decline >20% from peak
+- Style drift detected
+
+6.3 Redemption Triggers: Initiate redemption review if:
+- Fund on watchlist for 2+ consecutive quarters
+- Breach of investment guidelines communicated by manager
+- Material change in fund strategy or terms
+
+7. REPORTING REQUIREMENTS
+
+7.1 Monthly: NAV, returns, and cash flow summary for all funds
+7.2 Quarterly: Full portfolio review including attribution, risk metrics, and compliance check
+7.3 Annually: Comprehensive IPS review, manager evaluation, and strategic allocation assessment
+
+8. GOVERNANCE
+
+8.1 Investment Committee: Reviews and approves all new investments >$10M, strategy changes, and IPS amendments.
+8.2 CIO Authority: May execute investments <$10M within approved guidelines without Committee approval.
+8.3 Compliance Officer: Monitors adherence to IPS guidelines and reports violations to Investment Committee.

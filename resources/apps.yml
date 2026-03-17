@@ -1,0 +1,26 @@
+resources:
+  apps:
+    investment_intel_app:
+      name: "${bundle.target}-investment-intel"
+      description: "AI-powered investment portfolio intelligence"
+      source_code_path: ../app
+
+      resources:
+        - name: warehouse_id
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: "CAN_USE"
+        - name: embedding_model
+          serving_endpoint:
+            name: databricks-gte-large-en
+            permission: "CAN_QUERY"
+        - name: fund_docs_index
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.fund_documents_vector_index
+            permission: SELECT
+        - name: ips_index
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.investment_policy_vector_index
+            permission: SELECT

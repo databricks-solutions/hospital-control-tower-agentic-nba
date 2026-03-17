@@ -1,0 +1,92 @@
+DUE DILIGENCE CHECKLIST FOR FUND INVESTMENTS
+Document ID: IPS-002
+Effective Date: 2024-03-01
+Last Review: 2025-06-01
+Owner: Director of Research
+
+1. INVESTMENT DUE DILIGENCE (IDD)
+
+1.1 Strategy Assessment:
+- [ ] Clearly defined and documented investment strategy
+- [ ] Strategy consistent with our portfolio needs and allocation targets
+- [ ] Market opportunity analysis for the strategy
+- [ ] Competitive landscape assessment -- how does the fund differentiate?
+- [ ] Capacity analysis -- can the fund accept our allocation without diluting returns?
+
+1.2 Track Record Review:
+- [ ] Minimum 3-year audited track record
+- [ ] Gross and net returns attribution
+- [ ] Performance in up and down markets (asymmetry analysis)
+- [ ] Comparison to relevant benchmark and peer group
+- [ ] Sharpe ratio, Sortino ratio, max drawdown analysis
+- [ ] Return persistence -- are returns repeatable or driven by one-time events?
+
+1.3 Portfolio Construction:
+- [ ] Position sizing methodology documented
+- [ ] Concentration risk assessment (top 10 positions)
+- [ ] Sector and geographic diversification review
+- [ ] Liquidity profile of underlying positions
+- [ ] Use of leverage -- terms, limits, and historical usage
+- [ ] Hedging approach and effectiveness
+
+1.4 Terms Review:
+- [ ] Management fee structure (typical: 1-2%)
+- [ ] Performance fee / carry (typical: 20%, with hurdle)
+- [ ] Hurdle rate and catch-up provisions
+- [ ] Liquidity terms (lock-up, redemption notice, gates)
+- [ ] Side pocket provisions
+- [ ] Most Favored Nation (MFN) clause availability
+- [ ] Key-person clause and trigger events
+
+2. OPERATIONAL DUE DILIGENCE (ODD)
+
+2.1 Firm Structure:
+- [ ] Legal entity structure and jurisdictions
+- [ ] Ownership and succession plan
+- [ ] Regulatory registration (SEC, FCA, etc.)
+- [ ] Insurance coverage (E&O, D&O, fidelity bond)
+- [ ] Business continuity and disaster recovery plan
+
+2.2 Team Assessment:
+- [ ] Key investment professionals -- tenure, experience, track record
+- [ ] Key-person risk evaluation
+- [ ] Compensation structure and alignment
+- [ ] Staff turnover history
+- [ ] Succession planning documentation
+
+2.3 Operations:
+- [ ] Independent administrator and auditor
+- [ ] Valuation policy and procedures
+- [ ] Trade execution and best execution policy
+- [ ] Compliance program and CCO background
+- [ ] Technology infrastructure assessment
+- [ ] Cybersecurity policies and testing
+
+2.4 Reporting:
+- [ ] Monthly NAV reporting with transparency requirements
+- [ ] Quarterly investor letter with attribution
+- [ ] Annual audited financial statements
+- [ ] Tax reporting (K-1 timing for US funds)
+
+3. ESG ASSESSMENT
+
+- [ ] ESG policy documented and integrated into investment process
+- [ ] UN PRI signatory or equivalent commitment
+- [ ] ESG reporting capabilities
+- [ ] Controversial sectors screening policy
+- [ ] Climate risk assessment for portfolio
+
+4. REFERENCE CHECKS
+
+- [ ] Minimum 3 investor references (existing LPs)
+- [ ] Service provider references (administrator, auditor, prime broker)
+- [ ] Background checks on key principals
+- [ ] Litigation and regulatory history review
+
+5. APPROVAL PROCESS
+
+5.1 Research Team: Completes IDD and ODD checklists, prepares investment memo
+5.2 CIO Review: Reviews memo and checklist, provides recommendation
+5.3 Investment Committee: Approves or rejects based on presentation
+5.4 Legal Review: Reviews subscription documents and side letter
+5.5 Compliance: Final sign-off on regulatory and policy compliance

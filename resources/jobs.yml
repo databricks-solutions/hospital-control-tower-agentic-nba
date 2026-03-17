@@ -1,0 +1,190 @@
+resources:
+  jobs:
+    setup_lakebase:
+      name: "${bundle.target}-investment-intel-setup-lakebase"
+      description: "Setup Lakebase instance and analysis_outputs table"
+      tasks:
+        - task_key: setup_lakebase
+          notebook_task:
+            notebook_path: ../notebooks/01_setup_lakebase.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    setup_vector_search:
+      name: "${bundle.target}-investment-intel-setup-vector-search"
+      description: "Setup Vector Search index for fund documents"
+      tasks:
+        - task_key: setup_vector_search
+          notebook_task:
+            notebook_path: ../notebooks/02_setup_vector_search.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+              "var.vector_search_endpoint": ${var.vector_search_endpoint}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    grant_permissions:
+      name: "${bundle.target}-investment-intel-grant-permissions"
+      description: "Grant permissions to app service principal"
+      tasks:
+        - task_key: grant_permissions
+          libraries:
+            - pypi:
+                package: "databricks-sdk>=0.90.0"
+          notebook_task:
+            notebook_path: ../notebooks/03_grant_permissions.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+              "var.app_name": "${bundle.target}-investment-intel"
+              "var.vector_search_endpoint": ${var.vector_search_endpoint}
+              "var.service_principal_id": ""
+              "var.service_principal_name": ""
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    diagnostic_check:
+      name: "${bundle.target}-investment-intel-diagnostic"
+      description: "Run diagnostic checks for app prerequisites"
+      tasks:
+        - task_key: diagnostic_check
+          notebook_task:
+            notebook_path: ../notebooks/04_diagnostic_check.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+              "var.app_name": "${bundle.target}-investment-intel"
+              "var.warehouse_id": ${var.warehouse_id}
+              "var.vector_search_endpoint": ${var.vector_search_endpoint}
+              "var.llm_model_rag": ${var.llm_model_rag}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    setup_sop_vector_search:
+      name: "${bundle.target}-investment-intel-setup-sop-vector"
+      description: "Setup investment policy PDF parsing and vector search index"
+      tasks:
+        - task_key: setup_sop_vector_search
+          notebook_task:
+            notebook_path: ../notebooks/05_setup_sop_vector_search.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+              "var.vector_search_endpoint": ${var.vector_search_endpoint}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    setup_data_model:
+      name: "${bundle.target}-investment-intel-setup-data-model"
+      description: "Setup investment portfolio data model tables"
+      tasks:
+        - task_key: setup_data_model
+          notebook_task:
+            notebook_path: ../notebooks/06_simplify_data_model.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    generate_data:
+      name: "${bundle.target}-investment-intel-generate-data"
+      description: "Generate realistic investment portfolio data for testing and demos"
+      tasks:
+        - task_key: generate_data
+          notebook_task:
+            notebook_path: ../notebooks/00_generate_data.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+              "encounter_count": "10000"
+              "months_back": "12"
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+
+    daily_data_refresh:
+      name: "${bundle.target}-investment-intel-daily-data"
+      description: "Daily append of fresh fund data to keep demo tables current"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: "America/New_York"
+      tasks:
+        - task_key: daily_append
+          notebook_task:
+            notebook_path: ../notebooks/00_generate_data.py
+            base_parameters:
+              "var.catalog": ${var.catalog}
+              "var.schema": ${var.schema}
+              "encounter_count": "200"
+              "months_back": "1"
+              "write_mode": "append"
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode

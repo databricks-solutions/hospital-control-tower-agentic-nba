@@ -1,0 +1,104 @@
+PORTFOLIO ALLOCATION AND REBALANCING POLICY
+Document ID: IPS-003
+Effective Date: 2024-02-01
+Last Review: 2025-06-01
+Owner: Portfolio Manager
+
+1. PURPOSE
+
+This document establishes procedures for portfolio construction, allocation decisions, and rebalancing activities in alignment with the Investment Policy Statement (IPS-001).
+
+2. STRATEGIC ASSET ALLOCATION
+
+2.1 Target Portfolio:
+- Public Equity: 35% (range: 30-40%)
+- Private Credit: 25% (range: 20-30%)
+- Venture Capital: 15% (range: 10-20%)
+- Real Assets: 10% (range: 5-15%)
+- Hedge Funds: 10% (range: 5-15%)
+- Cash Reserve: 5% (range: 2-5%)
+
+2.2 Benchmark Composition:
+- Public Equity: MSCI World Healthcare Index
+- Private Credit: Cliffwater Direct Lending Index
+- Venture Capital: Cambridge Associates US Venture Capital Index
+- Real Assets: NCREIF Property Index + S&P Global Infrastructure
+- Hedge Funds: HFRI Fund Weighted Composite Index
+
+3. REBALANCING PROCEDURES
+
+3.1 Trigger-Based Rebalancing:
+- Hard trigger: Any asset class deviates >5% from target -> immediate rebalancing required
+- Soft trigger: Any asset class deviates >3% from target -> flag for next quarterly review
+- Cash reserve below 2% -> immediate liquidity action required
+
+3.2 Calendar-Based Review:
+- Quarterly: Full allocation review vs targets
+- Semi-annually: Strategic allocation review with forward-looking adjustments
+- Annually: Comprehensive IPS and allocation methodology review
+
+3.3 Rebalancing Execution:
+Step 1: Identify overweight and underweight positions
+Step 2: Assess transaction costs and tax implications
+Step 3: Prioritize liquid redemptions for overweight reduction
+Step 4: Deploy to underweight strategies via approved fund pipeline
+Step 5: Document rationale and approval in rebalancing log
+
+4. NEW ALLOCATION PROCEDURES
+
+4.1 Pipeline Management:
+- Maintain pipeline of 10-15 pre-qualified funds per strategy
+- Quarterly pipeline review and refresh
+- New funds require full due diligence (per IPS-002) before allocation
+
+4.2 Sizing Guidelines:
+- Initial allocation: 2-5% of total portfolio per fund
+- Maximum single fund: 10% of total portfolio
+- Maximum single manager: 15% across all funds
+- Vintage year diversification: spread commitments across 3+ vintages
+
+4.3 Approval Thresholds:
+- <$5M: CIO approval
+- $5M-$10M: CIO + one Investment Committee member
+- >$10M: Full Investment Committee approval
+
+5. CONCENTRATION MONITORING
+
+5.1 Fund-Level:
+- Alert at 8% of portfolio in single fund
+- Hard limit at 10% -- must initiate reduction plan
+
+5.2 Manager-Level:
+- Alert at 12% of portfolio with single manager
+- Hard limit at 15% -- must diversify
+
+5.3 Strategy-Level:
+- Top-5 fund concentration within any strategy must not exceed 40%
+- If breached, initiate diversification within 2 quarters
+
+5.4 Sector Concentration:
+- Healthcare sector: permitted up to 60% given portfolio mandate
+- Any other single sector: maximum 25%
+- Geographic concentration: no single geography >50% (except North America)
+
+6. LIQUIDITY MANAGEMENT
+
+6.1 Liquidity Tiers:
+- Tier 1 (Daily/Weekly): Cash, money market -> minimum 2% of portfolio
+- Tier 2 (Monthly): Liquid hedge funds, public equity -> minimum 20%
+- Tier 3 (Quarterly): Credit funds, some hedge funds -> up to 30%
+- Tier 4 (Annual+): Private equity, venture, locked vehicles -> maximum 35%
+
+6.2 Cash Flow Forecasting:
+- Monthly: Project capital calls and distributions for next 12 months
+- Quarterly: Update grant disbursement forecast
+- Annually: 3-year liquidity stress test
+
+7. DOCUMENTATION REQUIREMENTS
+
+All allocation decisions must include:
+- Investment memo with rationale
+- Fit within strategic allocation targets
+- Impact on concentration limits
+- Liquidity assessment
+- Approval signatures per threshold

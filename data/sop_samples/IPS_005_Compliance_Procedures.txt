@@ -1,0 +1,124 @@
+INVESTMENT COMPLIANCE PROCEDURES
+Document ID: IPS-005
+Effective Date: 2024-05-01
+Last Review: 2025-06-01
+Owner: Compliance Officer
+
+1. PURPOSE
+
+This document defines the compliance monitoring procedures for the Medical Grants Investment Portfolio, ensuring adherence to the Investment Policy Statement, regulatory requirements, and fiduciary obligations.
+
+2. COMPLIANCE MONITORING FRAMEWORK
+
+2.1 Pre-Trade Compliance:
+- All new investments screened against IPS guidelines before execution
+- Concentration limits checked prior to allocation
+- Liquidity impact assessed for each new commitment
+- Sanctions and restricted list screening for fund managers
+
+2.2 Post-Trade Compliance:
+- Daily: Position limits and concentration checks
+- Weekly: Cash and liquidity ratio monitoring
+- Monthly: Full IPS guideline compliance review
+- Quarterly: Comprehensive compliance report to Investment Committee
+
+3. KEY COMPLIANCE METRICS
+
+3.1 Portfolio-Level:
+- Asset allocation within approved ranges (per IPS-001 Section 3)
+- Single fund concentration <= 10% of portfolio
+- Single manager concentration <= 15% of portfolio
+- Top-5 strategy concentration <= 40%
+- Illiquidity ratio <= 35%
+- Liquidity Coverage Ratio >= 1.2x
+
+3.2 Fund-Level:
+- All funds have current audited financials (within 180 days)
+- All funds registered with appropriate regulators
+- Annual operational due diligence review completed
+- Side letter terms documented and monitored
+- Key-person provisions tracked
+
+4. BREACH PROCEDURES
+
+4.1 Soft Breach (within tolerance bands):
+- Document in compliance log
+- Notify CIO within 2 business days
+- Develop remediation plan with timeline
+- Monitor weekly until resolved
+
+4.2 Hard Breach (outside tolerance):
+- Immediate notification to CIO and Investment Committee Chair
+- Trading restrictions on affected asset class until resolved
+- Formal remediation plan required within 5 business days
+- Report to Board at next meeting
+
+4.3 Regulatory Breach:
+- Immediate escalation to General Counsel and Compliance Officer
+- Regulatory notification as required
+- Root cause analysis within 10 business days
+- Policy amendment if systemic issue identified
+
+5. WATCHLIST MANAGEMENT
+
+5.1 Watchlist Placement Criteria:
+- Underperformance: Returns below benchmark by >300bps for 2 consecutive quarters
+- Key-person event: Departure of named key person
+- Regulatory/legal: Any enforcement action, investigation, or material litigation
+- Operational: Failed audit, administrator change, or material control weakness
+- AUM decline: >20% AUM decline from peak (potential for adverse selection)
+- Style drift: Material deviation from stated investment strategy
+
+5.2 Watchlist Monitoring:
+- Monthly performance review with enhanced attribution
+- Quarterly call with fund management
+- Review of all investor communications
+- Assessment of redemption queue and gate risk
+
+5.3 Watchlist Resolution:
+- Upgrade to active: Issue resolved, 2 consecutive quarters of acceptable performance
+- Maintain on watchlist: Issue ongoing but contained
+- Initiate redemption: Issue worsening or unresolvable, per IPS-001 Section 6.3
+
+6. REGULATORY COMPLIANCE
+
+6.1 Fiduciary Standards:
+- All investment decisions documented with fiduciary rationale
+- Conflicts of interest disclosed and managed
+- Best execution policy for all transactions
+- Fee and expense transparency for all fund investments
+
+6.2 Tax Compliance:
+- K-1 tracking for US partnership investments
+- FATCA/CRS compliance for offshore funds
+- UBTI monitoring for tax-exempt entities
+- Withholding tax optimization review annually
+
+6.3 ESG Compliance:
+- Annual ESG screening of all fund investments
+- Controversial weapons and sanctions screening
+- Climate risk disclosure tracking
+- UN PRI reporting alignment
+
+7. REPORTING
+
+7.1 Monthly Compliance Dashboard:
+- Allocation vs targets with deviation flags
+- Concentration metrics (fund, manager, strategy, sector)
+- Liquidity ratios and trends
+- Watchlist status summary
+
+7.2 Quarterly Compliance Report:
+- Full IPS guideline compliance assessment
+- All breaches and remediation status
+- Watchlist additions, removals, and status changes
+- Regulatory and fiduciary compliance attestation
+- Recommendations for policy amendments
+
+8. RECORD RETENTION
+
+- Investment memos and approvals: 10 years
+- Compliance reports and breach logs: 7 years
+- Due diligence files: Life of investment + 5 years
+- Meeting minutes and decisions: 10 years
+- Communications with fund managers: 5 years

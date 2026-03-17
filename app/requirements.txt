@@ -1,0 +1,16 @@
+flask>=3.0.0
+flask-cors>=4.0.0
+databricks-sdk>=0.20.0
+databricks-langchain>=0.1.0
+databricks-vectorsearch>=0.40
+langgraph>=0.2.0
+langchain-core>=0.3.0
+gunicorn>=21.2.0
+httpx>=0.25.0
+apscheduler>=3.10.0
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+psycopg2-binary>=2.9.0
+requests>=2.31.0
+mlflow>=3.1
+

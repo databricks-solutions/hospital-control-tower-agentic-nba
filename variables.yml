@@ -1,0 +1,43 @@
+variables:
+  workspace_host:
+    description: "Databricks workspace host URL"
+    default: ""
+  deploying_user:
+    description: "User deploying the bundle"
+    default: ""
+  root_path:
+    description: "Root path for production deployment"
+    default: ""
+  catalog:
+    description: "Unity Catalog name"
+    default: ""
+  schema:
+    description: "Schema name"
+    default: "investment_intel"
+  warehouse_id:
+    description: "SQL Warehouse ID"
+    default: ""
+  node_type_id:
+    description: "Node type for job clusters"
+    default: "i3.xlarge"
+  lakebase_instance:
+    description: "Lakebase instance name"
+    default: ""
+  lakebase_host:
+    description: "Lakebase PostgreSQL host (get from UI: Data > Databases > instance > Connection details)"
+    default: ""
+  lakebase_database:
+    description: "Lakebase database name"
+    default: "postgres"
+  vector_search_endpoint:
+    description: "Vector Search endpoint name"
+    default: ""
+  heartbeat_interval_seconds:
+    description: "Interval for agent heartbeat in seconds"
+    default: "60"
+  llm_model_orchestrator:
+    description: "LLM for orchestrator mode"
+    default: "databricks-gpt-oss-120b"
+  llm_model_rag:
+    description: "LLM for RAG agent mode"
+    default: "databricks-claude-sonnet-4-5"
