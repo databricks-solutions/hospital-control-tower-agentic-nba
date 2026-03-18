@@ -14,13 +14,3 @@ resources:
           serving_endpoint:
             name: databricks-gte-large-en
             permission: "CAN_QUERY"
-        - name: fund_docs_index
-          uc_securable:
-            securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.fund_documents_vector_index
-            permission: SELECT
-        - name: ips_index
-          uc_securable:
-            securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.investment_policy_vector_index
-            permission: SELECT
