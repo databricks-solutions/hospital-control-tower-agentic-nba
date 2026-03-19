@@ -1,30 +1,28 @@
 """Pre-agent orchestrator for ChatGPT-style tool selection."""
 from typing import List, Dict, Any, Optional
 from .config import CATALOG, SCHEMA
-from .tools import execute_sql, search_fund_documents, search_investment_policies, write_analysis
+from .tools import execute_sql, search_encounters, search_sops, write_analysis
 
 
-POLICY_KEYWORDS = [
-    "policy", "policies", "ips", "guideline", "compliance", "limit", "threshold",
-    "allowed", "permitted", "prohibited", "restriction", "rule", "procedure",
-    "protocol", "governance", "mandate", "target allocation", "rebalance",
-    "watchlist criteria", "due diligence", "esg", "responsible invest",
-    "valuation standard", "capital call", "distribution waterfall",
-    "liquidity requirement", "concentration limit", "benchmark",
-    "underperformance", "escalation", "risk framework", "reporting requirement",
-    "what should", "what does the ips say", "what are the rules",
+SOP_KEYWORDS = [
+    "sop", "procedure", "protocol", "policy", "guideline", "compliance",
+    "threshold", "limit", "allowed", "permitted", "restriction", "rule",
+    "governance", "accreditation", "regulatory", "jcaho", "cms",
+    "what should", "what does the sop say", "what are the rules",
     "according to", "per our policy", "what is our",
+    "escalation", "staffing ratio", "nurse ratio", "bed capacity",
+    "discharge planning", "readmission prevention", "triage protocol",
+    "formulary", "antibiotic stewardship", "hand hygiene",
 ]
 
 
 def classify_intent(message: str) -> str:
     message_lower = message.lower()
-    if any(kw in message_lower for kw in POLICY_KEYWORDS):
-        return "policy"
+    if any(kw in message_lower for kw in SOP_KEYWORDS):
+        return "sop"
     analyze_keywords = ["analyze", "analysis", "report", "insight", "recommend", "trend", "pattern",
-                       "optimize", "compare", "why", "reduce", "performance", "allocation",
-                       "concentration", "exposure", "risk", "return", "outlook", "objective",
-                       "prospect", "assess", "evaluate", "review", "deep dive", "investigate"]
+                       "optimize", "compare", "why", "reduce", "lower", "next best action", "nba",
+                       "root cause", "investigate", "deep dive", "assess", "evaluate", "review"]
     if any(kw in message_lower for kw in analyze_keywords):
         return "analyze"
     query_keywords = ["how many", "count", "list", "show", "get", "which",
@@ -40,49 +38,48 @@ def classify_intent(message: str) -> str:
 def select_tools_for_context(message: str, user_context: Optional[Dict[str, Any]] = None) -> tuple:
     """Returns (tools_list, intent_string)."""
     intent = classify_intent(message)
-    if intent == "policy":
-        return [execute_sql, search_investment_policies, search_fund_documents], intent
+    if intent == "sop":
+        return [execute_sql, search_sops, search_encounters], intent
     elif intent == "analyze":
-        return [execute_sql, search_fund_documents, search_investment_policies, write_analysis], intent
+        return [execute_sql, search_encounters, search_sops, write_analysis], intent
     elif intent == "query":
-        return [execute_sql, search_investment_policies], intent
+        return [execute_sql, search_sops], intent
     elif intent == "search":
-        return [search_fund_documents, search_investment_policies], intent
+        return [search_encounters, search_sops], intent
     else:
-        return [execute_sql, search_fund_documents, search_investment_policies], intent
+        return [execute_sql, search_encounters, search_sops], intent
 
 
 def get_system_prompt_for_context(message: str, tools: List, user_context: Optional[Dict[str, Any]] = None) -> str:
     tool_names = [t.name for t in tools]
-    base_prompt = f"""You are an investment portfolio intelligence assistant in Quick Query mode.
+    base_prompt = f"""You are a medical logistics operations assistant in Quick Query mode.
 
 BEHAVIOR:
 - Be concise. Return the requested data with a 1-2 sentence interpretation.
 - Do NOT perform multi-step deep analysis. If the question requires root-cause analysis,
-  impact assessment, or a comprehensive investment report, say: "This question would benefit from
+  impact assessment, or a Next Best Action report, say: "This question would benefit from
   Deep Analysis mode, which can run a full investigation with evidence sourcing and
   impact assessment. Switch to Deep Analysis mode for a comprehensive answer."
 - For simple factual questions, answer directly with data.
 
 Available data in {CATALOG}.{SCHEMA}:
-- dim_funds: Fund dimension (manager, strategy, AUM, status, vintage)
-- fact_fund_performance: Monthly returns, NAV, alpha, benchmark comparison
-- fact_portfolio_holdings: Position-level holdings by sector, geography
-- fact_fund_flows: Capital calls, distributions, liquidity terms
-- fact_portfolio_kpis: Portfolio-level KPIs by strategy segment
-- portfolio_overview: Summary VIEW
+- dim_encounters: Patient encounters (hospital, department, LOS, discharge day, payer, readmission)
+- fact_drug_costs: Drug costs by encounter, drug, category
+- fact_staffing: Staffing levels by type (full_time, contract, per_diem)
+- fact_ed_wait_times: ED visit metrics by acuity level
+- fact_operational_kpis: Daily KPIs per hospital/department
+- hospital_overview: Summary VIEW
 """
     if "execute_sql" in tool_names:
         base_prompt += f"\nWhen writing SQL, use catalog/schema: {CATALOG}.{SCHEMA}\n"
-    if "search_investment_policies" in tool_names:
+    if "search_sops" in tool_names:
         base_prompt += """
-POLICY GROUNDING (important):
-You have access to the firm's Investment Policy Statement (IPS) and related governance documents
-via search_investment_policies. Use this tool proactively when:
-- Any question touches on targets, limits, thresholds, or allocation guidelines
-- Questions about what is allowed, required, or recommended
-- Providing recommendations that should reference firm policy
-- Questions about outlook, objectives, due diligence, ESG, risk, or compliance
-When you cite policy, quote the specific section (e.g., "Per IPS Section 3.1, single GP exposure maximum is 8% of NAV").
+SOP GROUNDING (important):
+You have access to the hospital's Standard Operating Procedures via search_sops. Use this tool proactively when:
+- Any question touches on targets, thresholds, or operational guidelines
+- Questions about what is required, recommended, or mandated
+- Providing recommendations that should reference hospital policy
+- Questions about staffing ratios, discharge protocols, ED triage, or compliance
+When you cite an SOP, quote the specific section or procedure name.
 """
     return base_prompt

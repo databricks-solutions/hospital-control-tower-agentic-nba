@@ -19,7 +19,7 @@ class LakebaseConnection:
         port: int = 5432,
     ):
         self.host = host or os.environ.get("LAKEBASE_HOST", "")
-        self.database = database or os.environ.get("LAKEBASE_DATABASE", "investment_intel_db")
+        self.database = database or os.environ.get("LAKEBASE_DATABASE", "med_logistics_nba_db")
         self.port = port
         self._engine = None
         self._session_factory = None

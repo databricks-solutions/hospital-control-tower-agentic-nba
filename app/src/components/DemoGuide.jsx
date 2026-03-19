@@ -2,12 +2,12 @@ import { useState } from 'react'
 
 const STEPS = [
   {
-    title: 'Welcome to Investment Intelligence Platform',
-    body: 'An AI-powered portfolio companion for investment operations. It monitors portfolio health, answers questions about your data, and recommends actions grounded in your investment policies.',
+    title: 'Welcome to Hospital Control Tower',
+    body: 'An AI-powered operations companion for hospital logistics. It monitors health metrics, answers questions about your data, and recommends actions grounded in your SOPs.',
   },
   {
     title: 'Dashboard',
-    body: 'The right panel shows real-time portfolio metrics: fund flows, concentration, returns, exposure shifts, and compliance status. Trend arrows show week-over-week changes.',
+    body: 'The right panel shows real-time operational metrics: encounter volume, LOS, readmissions, ED wait times, drug costs, and staffing mix. Trend arrows show week-over-week changes.',
   },
   {
     title: 'Ask a Question',
@@ -15,11 +15,11 @@ const STEPS = [
   },
   {
     title: 'Demo Tools',
-    body: '"Inject Returns" adds healthy returns data, "Inject Risk" adds underperforming positions, and "Check Health" triggers an immediate portfolio health check. Use these to show how the system responds to changing data.',
+    body: '"Inject Good" adds healthy encounters, "Inject Anomaly" adds problematic ones, and "Check Health" triggers an immediate health check. Use these to show how the system responds to changing data.',
   },
   {
     title: 'Autonomous Mode',
-    body: 'Click "Auto Start" to enable background monitoring. The agent checks portfolio health on a schedule and generates Investment Action reports when issues are detected. It auto-stops after 2 hours.',
+    body: 'Click "Auto Start" to enable background monitoring. The agent checks operational health on a schedule and generates Next Best Action reports when issues are detected. It auto-stops after 2 hours.',
   },
   {
     title: 'Try It',

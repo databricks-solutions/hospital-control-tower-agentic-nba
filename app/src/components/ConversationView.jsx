@@ -34,23 +34,16 @@ const INTENT_DESCRIPTIONS = {
 }
 
 const TOOL_DESCRIPTIONS = {
-  execute_sql: 'Execute read-only SQL queries against investment portfolio data',
-  search_encounters: 'Search fund documents, memos, and letters using semantic similarity',
-  search_fund_documents: 'Search fund documents, memos, and letters using semantic similarity',
-  search_sops: 'Search investment policy statements and compliance procedures',
-  search_investment_policies: 'Search investment policy statements and compliance procedures',
-  analyze_cost_drivers: 'Analyze fund performance drivers, returns, and alpha generation',
-  analyze_performance_drivers: 'Analyze fund performance drivers, returns, and alpha generation',
-  analyze_los_factors: 'Analyze portfolio concentration risk at fund, sector, and geography level',
-  analyze_concentration: 'Analyze portfolio concentration risk at fund, sector, and geography level',
-  check_ed_performance: 'Check fund capital calls, distributions, and liquidity',
-  check_fund_flows: 'Check fund capital calls, distributions, and liquidity',
-  check_staffing_efficiency: 'Analyze sector and geographic exposure shifts over time',
-  check_exposure_shifts: 'Analyze sector and geographic exposure shifts over time',
-  check_operational_kpis: 'Check portfolio KPIs against IPS thresholds',
-  check_portfolio_kpis: 'Check portfolio KPIs against IPS thresholds',
-  check_data_freshness: 'Check data pipeline freshness',
-  write_analysis: 'Save analysis findings and recommendations',
+  execute_sql: 'Runs a read-only SQL query against hospital operations tables',
+  search_encounters: 'Semantic search over patient encounter records via vector index',
+  search_sops: 'Searches Standard Operating Procedures for policy guidance',
+  analyze_cost_drivers: 'Analyzes drug cost patterns by hospital and time period',
+  analyze_los_factors: 'Examines length-of-stay drivers and discharge patterns',
+  check_ed_performance: 'Reviews ED wait times and threshold breaches by acuity',
+  check_staffing_efficiency: 'Analyzes contract labor usage and staffing costs',
+  check_operational_kpis: 'Checks key operational metrics against thresholds',
+  check_data_freshness: 'Verifies table recency and row counts',
+  write_analysis: 'Saves analysis results and recommendations to the database',
 }
 
 function AgentReasoning({ intent, toolCalls }) {
@@ -224,7 +217,7 @@ function WelcomeMessage({ healthScore }) {
     <div className="space-y-4 message-enter max-w-4xl">
       <div>
         <p className="text-xl text-warm-white mb-2">
-          {getGreeting()}. Portfolio health: {' '}
+          {getGreeting()}. Operations health: {' '}
           <span className={cn("font-semibold", getHealthColor(healthScore?.score))}>
             {healthScore?.score || '--'}/100
           </span>
@@ -238,8 +231,8 @@ function WelcomeMessage({ healthScore }) {
         
         {!healthScore?.summary && (
           <p className="text-slate-300 leading-relaxed">
-            Ready to help you monitor your investment portfolio, analyze trends, and recommend actions.
-            Ask me anything about your portfolio data.
+            Ready to help you monitor hospital operations, analyze trends, and recommend actions.
+            Ask me anything about your medical logistics data.
           </p>
         )}
       </div>
@@ -287,7 +280,7 @@ export default function ConversationView({ mode, healthScore, onRefresh, pending
       return
     }
     setLoadingStage('starting')
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 300; i++) {
       if (cancelledRef.current) return
       await new Promise(r => setTimeout(r, 2000))
       if (cancelledRef.current) return
@@ -315,7 +308,7 @@ export default function ConversationView({ mode, healthScore, onRefresh, pending
     }
     if (!cancelledRef.current) {
       setLoadingStage(null)
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Deep analysis timed out after 5 minutes.' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Deep analysis timed out after 10 minutes.' }])
     }
   }
 
@@ -444,7 +437,7 @@ export default function ConversationView({ mode, healthScore, onRefresh, pending
           )}
           <div className="flex gap-3">
             <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="Ask about your portfolio..." rows={1}
+              placeholder="Ask me anything..." rows={1}
               className="flex-1 bg-slate-800/60 border border-slate-700/40 rounded-xl px-5 py-3.5 text-warm-white placeholder-slate-500 resize-none focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all" />
             <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading}
               className={cn("px-5 rounded-xl font-medium transition-all flex items-center justify-center",

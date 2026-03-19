@@ -43,14 +43,14 @@ export default function Header({ mode, setMode, autonomousStatus, onToggleAutono
                 </svg>
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-warm-white">Investment Intelligence Platform</h1>
-                <p className="text-xs text-slate-400">Portfolio Intelligence</p>
+                <h1 className="text-lg font-semibold text-warm-white">Hospital Control Tower</h1>
+                <p className="text-xs text-slate-400">Operations Intelligence</p>
               </div>
             </div>
             
             {healthScore && (
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-lg"
-                title="Composite score: 40% concentration + 30% returns + 30% flow compliance">
+                title="Composite score: 40% LOS + 30% readmission rate + 30% ED breaches">
                 <div className={cn("w-2 h-2 rounded-full", getHealthColor(healthScore.score))} />
                 <span className="text-sm text-slate-300">
                   Health: <span className="font-medium text-warm-white">{healthScore.score}</span>/100
@@ -96,7 +96,7 @@ export default function Header({ mode, setMode, autonomousStatus, onToggleAutono
                 disabled={loadingStates.checkHealth}
                 className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-1.5",
                   loadingStates.checkHealth && "opacity-60 cursor-not-allowed")}
-                title="Trigger a one-shot health check of all portfolio metrics"
+                title="Trigger a one-shot health check of all operational metrics"
               >
                 {loadingStates.checkHealth && <Spinner />}
                 Check Health
@@ -106,27 +106,27 @@ export default function Header({ mode, setMode, autonomousStatus, onToggleAutono
                 disabled={loadingStates.injectGood}
                 className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-1.5",
                   loadingStates.injectGood && "opacity-60 cursor-not-allowed")}
-                title="Add healthy returns data (batch size configurable in Settings)"
+                title="Add healthy encounters (batch size configurable in Settings)"
               >
                 {loadingStates.injectGood && <Spinner />}
-                Inject Returns
+                Inject Good
               </button>
               <button
                 onClick={onInjectAnomaly}
                 disabled={loadingStates.injectAnomaly}
                 className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-all flex items-center gap-1.5",
                   loadingStates.injectAnomaly && "opacity-60 cursor-not-allowed")}
-                title="Insert underperforming positions and risk indicators across portfolio tables"
+                title="Insert anomalous data across all tables (high LOS, costly drugs, long ED waits)"
               >
                 {loadingStates.injectAnomaly && <Spinner />}
-                Inject Risk
+                Inject Anomaly
               </button>
               <button
                 onClick={onResetData}
                 disabled={loadingStates.reset}
                 className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-500/20 text-slate-400 hover:bg-slate-500/30 transition-all flex items-center gap-1.5",
                   loadingStates.reset && "opacity-60 cursor-not-allowed")}
-                title="Remove all injected data and clear portfolio analysis outputs"
+                title="Remove all injected data and clear analysis outputs"
               >
                 {loadingStates.reset && <Spinner />}
                 Reset
@@ -136,7 +136,7 @@ export default function Header({ mode, setMode, autonomousStatus, onToggleAutono
                 disabled={loadingStates.backfill}
                 className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5",
                   loadingStates.backfill && "opacity-60 cursor-not-allowed")}
-                title="Generate baseline portfolio data for all missing days up to today"
+                title="Generate baseline data for all missing days up to today"
               >
                 {loadingStates.backfill && <Spinner />}
                 Backfill
@@ -151,7 +151,7 @@ export default function Header({ mode, setMode, autonomousStatus, onToggleAutono
               <span className="text-sm text-slate-300">Auto{remaining && <span className="text-slate-500 ml-1">{remaining}</span>}</span>
               <button
                 onClick={onToggleAutonomous}
-                title={isRunning ? "Stop autonomous monitoring" : "Start autonomous portfolio monitoring (auto-stops after 2 hours)"}
+                title={isRunning ? "Stop autonomous monitoring" : "Start autonomous monitoring (auto-stops after 2 hours)"}
                 className={cn(
                   "px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
                   isRunning

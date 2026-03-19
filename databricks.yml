@@ -1,5 +1,5 @@
 bundle:
-  name: investment_intel_nba_app
+  name: hospital_ops_nba_app
   databricks_cli_version: ">=0.234.*"
 
 sync:
@@ -18,9 +18,9 @@ targets:
       host: https://fe-vm-vdm-classic-q6xfh3.cloud.databricks.com/ # workspace URL
     variables:
       catalog: eswanson_demo # Unity Catalog name
-      schema: investment_intel
+      schema: med_logistics_nba
       warehouse_id: 3abb59fcfb739e0d # SQL Warehouse ID
-      vector_search_endpoint: eswanson_demo_investment_intel_vector_endpoint # Vector Search endpoint name
+      vector_search_endpoint: eswanson_demo_med_logistics_nba_vector_endpoint # Vector Search endpoint name
       node_type_id: i3.xlarge
 
   prod:

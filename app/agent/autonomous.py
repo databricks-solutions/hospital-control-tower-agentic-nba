@@ -27,143 +27,141 @@ class AutonomousCapability:
 
 CAPABILITIES = [
     AutonomousCapability(
-        id="performance_monitoring",
-        name="Fund Performance Monitoring",
+        id="cost_monitoring",
+        name="Drug Cost Monitoring",
         weight=20,
-        prompt="""Monitor fund returns, NAV trends, alpha generation, and underperforming funds.
+        prompt="""Monitor drug costs across hospitals for anomalies and spikes.
 
-1. Query fact_fund_performance for the last 30 days, grouped by fund and benchmark
-2. Compare current period returns to previous periods - flag any >20% underperformance vs benchmark
-3. Identify top 10 underperforming funds and check for alpha outliers
-4. Check fact_fund_performance for NAV trends and benchmark spread by fund
+1. Query fact_drug_costs for the last 30 days, grouped by hospital and drug_category
+2. Compare current month spend to previous months - flag any >30% increases
+3. Identify top 10 highest-cost drugs and check for unit cost outliers
+4. Check fact_operational_kpis for drug_cost_per_encounter trends by hospital
 
-MUST use search_investment_policies to find performance monitoring procedures:
-- "underperformance thresholds and watchlist criteria"
-- "benchmark composite construction and attribution"
-- "performance escalation protocol levels"
+MUST use search_sops to find cost management procedures:
+- "pharmacy cost control procedures"
+- "drug formulary management"
+- "high-cost drug approval protocols"
 
 Generate report with:
-- Funds with performance anomalies, citing specific IPS thresholds (e.g., >300bps underperformance = Watch, >500bps = Review)
-- Specific drivers of underperformance using attribution framework
-- Policy-grounded recommendations referencing IPS section numbers
+- Hospitals with cost anomalies
+- Specific drugs driving cost increases
+- SOP-grounded recommendations for cost containment
 
 FORMATTING: Use markdown. Each recommendation on its own numbered line with a blank line between items. Use **bold** for section headings.
 
-Save using write_analysis with type 'performance_monitoring'.""",
+Save using write_analysis with type 'cost_monitoring'.""",
     ),
     AutonomousCapability(
-        id="concentration_analysis",
-        name="Portfolio Concentration Analysis",
+        id="los_analysis",
+        name="Length of Stay Analysis",
         weight=25,
-        prompt="""Analyze position concentration, top-5 fund concentration, and sector/geography concentration.
+        prompt="""Analyze length of stay patterns and identify reduction opportunities.
 
-1. Query fact_portfolio_holdings for concentration by fund, sector, and geography
-2. Identify portfolios where top-5 fund concentration > 40%
-3. Analyze sector concentration - flag any sector > 30% of portfolio
-4. Check geography concentration for regional overexposure
-5. Compare concentration across funds and time periods
+1. Query dim_encounters for LOS by hospital, department, and discharge day of week
+2. Identify departments with avg LOS > 5.0 days
+3. Analyze the Monday discharge effect - compare Monday LOS to other days
+4. Check readmission rates for correlation with short LOS (premature discharge)
+5. Compare Hospital_A LOS to Hospital_B and Hospital_C
 
-MUST use search_investment_policies FIRST for allocation guidelines:
-- "single manager concentration limit and top-5 GP exposure"
-- "sector concentration limits within healthcare"
-- "geographic allocation targets and maximum single country exposure"
-- "vintage year diversification and single-position limits"
+MUST use search_sops FIRST for discharge planning procedures:
+- "discharge planning protocols"
+- "length of stay reduction"
+- "care coordination procedures"
+- "weekend discharge procedures"
 
 Generate report with:
-- Concentration by fund vs IPS Section 3 limits (single GP max 8% NAV, top-5 max 30%)
-- Sector exposure vs sub-sector targets (e.g., biopharma 25-35%, medtech 15-25%)
-- Geographic exposure vs limits (US max 65%, single non-US country max 15%)
-- Policy-grounded recommendations citing specific IPS section numbers
+- LOS by hospital with benchmarks
+- Day-of-week discharge patterns
+- Top 3 departments with improvement opportunities
+- CAPA recommendations citing specific SOPs
 
 FORMATTING: Use markdown. Each recommendation on its own numbered line with a blank line between items. Use **bold** for section headings.
 
-Save using write_analysis with type 'concentration_analysis'.""",
+Save using write_analysis with type 'los_analysis'.""",
     ),
     AutonomousCapability(
-        id="flow_analysis",
-        name="Fund Flow Analysis",
+        id="ed_performance",
+        name="ED Performance Monitoring",
         weight=15,
-        prompt="""Monitor capital calls, distributions, net flows, and liquidity.
+        prompt="""Monitor Emergency Department performance and wait times.
 
-1. Query fact_fund_flows for capital calls and distributions by fund
-2. Check net flow trends - flag negative flows > 10% of AUM
-3. Identify liquidity stress: call coverage ratios, distribution timing
-4. Compare flow patterns across funds and time periods
+1. Query fact_ed_wait_times for average wait by acuity level
+2. Check threshold breaches: >15 min for acuity 1-2, >60 min for acuity 3-5
+3. Identify time-of-day and day-of-week patterns
+4. Compare ED performance across hospitals
 
-MUST use search_investment_policies for liquidity procedures:
-- "liquidity tier classification framework and minimum Tier 1 reserve"
-- "capital call notice period and overcommitment ratio limits"
-- "distribution waterfall and reinvestment vs payout policy"
-- "liquidity alert levels green yellow red"
+MUST use search_sops for ED flow procedures:
+- "ED throughput protocols"
+- "triage procedures"
+- "patient flow management"
 
 Generate report with:
-- Flow metrics by fund with status vs IPS thresholds (Tier 1 min 7% NAV, overcommitment max 35%)
-- Liquidity stress indicators and current alert level
-- Capital call forecast vs commitment reserves (IPS requires 40% coverage of 24-month calls)
-- Policy-grounded recommendations referencing IPS section numbers
+- Wait times by acuity with threshold status
+- Breach frequency and patterns
+- Specific recommendations for wait time reduction
 
 FORMATTING: Use markdown. Each recommendation on its own numbered line with a blank line between items. Use **bold** for section headings.
 
-Save using write_analysis with type 'flow_analysis'.""",
+Save using write_analysis with type 'ed_performance'.""",
     ),
     AutonomousCapability(
-        id="exposure_analysis",
-        name="Exposure Shift Analysis",
+        id="staffing_optimization",
+        name="Staffing Optimization",
         weight=15,
-        prompt="""Analyze sector/geography exposure changes and style drift.
+        prompt="""Analyze staffing patterns and contract labor efficiency.
 
-1. Query fact_portfolio_holdings for exposure by sector and geography over time
-2. Identify funds with sector exposure shifts > 5% month-over-month
-3. Calculate style drift: compare current allocation to policy targets
-4. Check geography exposure trends - flag material shifts
+1. Query fact_staffing for contract labor percentage by department
+2. Identify departments where contract labor > 25% of total FTEs
+3. Calculate cost differential: contract vs full-time per department
+4. Check trends - is contract labor increasing?
 
-MUST use search_investment_policies for allocation procedures:
-- "strategic allocation targets and tactical ranges by strategy"
-- "rebalancing trigger bands and protocol timeline"
-- "2026 outlook tactical tilts and deployment priorities"
+MUST use search_sops for staffing procedures:
+- "workforce planning"
+- "contract labor management"
+- "staffing ratio requirements"
 
 Generate report with:
-- Actual allocation vs IPS Section 3.1 targets and tactical ranges
-- Style drift: current vs target with trigger band status (e.g., PE target 28%, range 20-36%)
-- 2026 tactical tilt compliance: VC overweight +3%, credit underweight -2%
-- Policy-grounded rebalancing recommendations with IPS section references
+- Departments ranked by contract labor percentage
+- Cost impact analysis
+- Recruitment vs contract labor ROI
+- SOP-grounded recommendations for reducing contract reliance
 
 FORMATTING: Use markdown. Each recommendation on its own numbered line with a blank line between items. Use **bold** for section headings.
 
-Save using write_analysis with type 'exposure_analysis'.""",
+Save using write_analysis with type 'staffing_analysis'.""",
     ),
     AutonomousCapability(
-        id="investment_action_report",
-        name="Investment Action Report",
+        id="next_best_action_report",
+        name="Next Best Action Report",
         weight=20,
-        prompt="""Synthesize monitoring and analysis into prioritized investment action report.
+        prompt="""Synthesize monitoring and analysis into prioritized actionable report.
 
 STEP 1 - Check prerequisites:
    - Query analysis_outputs for analyses in the last 24 hours:
      SELECT analysis_type, MAX(created_at) as last_run FROM analysis_outputs
      WHERE created_at >= current_timestamp() - INTERVAL 24 HOURS GROUP BY analysis_type
-   - Required types: performance_monitoring, concentration_analysis, flow_analysis, exposure_analysis
+   - Required types: cost_monitoring, los_analysis, ed_performance, staffing_analysis
    - For each MISSING analysis, run it now using the appropriate tools:
-     * performance_monitoring missing -> analyze_performance_drivers for each fund
-     * concentration_analysis missing -> analyze_concentration for each fund
-     * flow_analysis missing -> check_fund_flows for each fund
-     * exposure_analysis missing -> check_exposure_shifts for each fund
+     * cost_monitoring missing -> analyze_cost_drivers for each hospital
+     * los_analysis missing -> analyze_los_factors for each hospital
+     * ed_performance missing -> check_ed_performance for each hospital
+     * staffing_analysis missing -> check_staffing_efficiency for each hospital
    - Save each prerequisite result with write_analysis before proceeding.
 
 STEP 2 - Gather recent findings:
    - Query analysis_outputs for all findings in last 24 hours
    - Identify critical issues and recurring patterns
 
-STEP 3 - Ground with policies:
-   - search_investment_policies: "2026 outlook objectives and tactical tilts"
-   - search_investment_policies: "risk escalation matrix severity levels and actions"
-   - search_investment_policies: "underperformance thresholds and watchlist escalation protocol"
+STEP 3 - Ground with SOPs:
+   - search_sops: "operational improvement procedures"
+   - search_sops: "quality improvement protocols"
+   - search_sops: "patient safety procedures"
 
 STEP 4 - Generate prioritized report using markdown formatting:
 
 **CRITICAL** (immediate, within 4 hours)
 
-1. Action description -- Policy: ... Expected outcome: ... Risk if delayed: ...
+1. Action description -- SOP: ... Expected outcome: ... Risk if delayed: ...
 
 2. Next action...
 
@@ -178,25 +176,25 @@ STEP 4 - Generate prioritized report using markdown formatting:
 Each action MUST be on its own numbered line with a blank line between items.
 Start with a 2-3 sentence executive summary before the priority sections.
 
-Save using write_analysis with type 'investment_action_report' and priority field set.""",
+Save using write_analysis with type 'next_best_action_report' and priority field set.""",
     ),
     AutonomousCapability(
-        id="portfolio_readiness",
-        name="Portfolio Readiness Check",
+        id="readiness_check",
+        name="Operations Readiness Check",
         weight=15,
         prompt="""Check analysis freshness and run any stale or missing analyses to prepare
-for user-driven Investment Action requests.
+for user-driven Next Best Action requests.
 
 1. Query analysis_outputs for the most recent run of each type:
    SELECT analysis_type, MAX(created_at) as last_run
    FROM analysis_outputs GROUP BY analysis_type
 
 2. For each of these required types, if missing or older than 24 hours, run the analysis:
-   - performance_monitoring: use analyze_performance_drivers for all funds
-   - concentration_analysis: use analyze_concentration for all funds
-   - flow_analysis: use check_fund_flows for all funds
-   - exposure_analysis: use check_exposure_shifts for all funds
-   - policy_compliance: use check_portfolio_kpis for all funds
+   - cost_monitoring: use analyze_cost_drivers for all hospitals
+   - los_analysis: use analyze_los_factors for all hospitals
+   - ed_performance: use check_ed_performance for all hospitals
+   - staffing_analysis: use check_staffing_efficiency for all hospitals
+   - compliance_monitoring: use check_operational_kpis for all hospitals
 
 3. For each analysis you run, save the result with write_analysis.
 
@@ -204,33 +202,29 @@ for user-driven Investment Action requests.
 
 FORMATTING: Use markdown. Each finding on its own numbered line with a blank line between items. Use **bold** for section headings.
 
-Save a summary using write_analysis with type 'portfolio_readiness'.""",
+Save a summary using write_analysis with type 'readiness_check'.""",
     ),
     AutonomousCapability(
-        id="policy_compliance",
-        name="Investment Policy Compliance",
+        id="compliance_monitoring",
+        name="Compliance Monitoring",
         weight=5,
-        prompt="""Check portfolio KPIs against IPS thresholds.
+        prompt="""Check operational KPIs against accreditation and regulatory thresholds.
 
-MUST use search_investment_policies FIRST:
-- "concentration risk single manager limit and top-5 exposure"
-- "liquidity tier minimum reserves"
-- "VaR limits and stress test action triggers"
-
-Query fact_portfolio_kpis for trends in:
-- concentration_top5_pct (IPS: top-5 GP max 30% NAV; single GP max 8%)
-- benchmark_spread (IPS: >200bps underperformance over 3yr triggers IC review)
-- total_aum trends
+Query fact_operational_kpis for trends in:
+- avg_los (target: <5.0 days)
+- readmission_rate (target: <10%)
+- bed_utilization_pct (target: 75-85%)
+- contract_labor_pct (target: <25%)
+- avg_ed_wait_minutes (target: <60 min)
 
 For each KPI:
 1. Get current value and 30-day trend
-2. Compare to specific IPS threshold and cite section number
-3. Calculate days until threshold breach if trending negatively
-4. Classify severity per IPS escalation matrix (Severity 1/2/3)
+2. Calculate days until threshold breach if trending negatively
+3. Compare across hospitals
 
 FORMATTING: Use markdown. Each finding on its own numbered line with a blank line between items. Use **bold** for section headings.
 
-Save using write_analysis with type 'policy_compliance'.""",
+Save using write_analysis with type 'compliance_monitoring'.""",
     ),
 ]
 
@@ -287,28 +281,28 @@ class AutonomousScheduler:
 
     def run_health_check(self) -> Dict[str, Any]:
         """Run only the health check capability (for manual trigger)."""
-        cap = self._get_capability("portfolio_readiness") or CAPABILITIES[0]
+        cap = self._get_capability("readiness_check") or CAPABILITIES[0]
         return self._execute_capability(cap)
 
     def _autonomous_job(self):
         """Smart workflow: health check first, action report only if issues detected."""
         if self._paused:
             return
-        logger.info("Autonomous scheduled run: starting portfolio readiness check")
+        logger.info("Autonomous scheduled run: starting health check")
         health = self._execute_capability(
-            self._get_capability("portfolio_readiness") or CAPABILITIES[0]
+            self._get_capability("readiness_check") or CAPABILITIES[0]
         )
         response_text = str(health.get("result", {}).get("response", ""))
         issue_signals = ["breach", "exceed", "anomal", "spike", "critical", "warning",
                          "attention", "above threshold", "below target", "degraded"]
         has_issues = any(s in response_text.lower() for s in issue_signals)
         if has_issues:
-            logger.info("Portfolio issues detected -- generating investment action report")
-            nba_cap = self._get_capability("investment_action_report")
+            logger.info("Health issues detected -- generating action report")
+            nba_cap = self._get_capability("next_best_action_report")
             if nba_cap:
                 self._execute_capability(nba_cap)
         else:
-            logger.info("No portfolio issues found -- skipping action report")
+            logger.info("No health issues found -- skipping action report")
 
     def _auto_stop(self):
         logger.info(f"Autonomous max runtime ({self.max_runtime}s) reached -- auto-stopping")

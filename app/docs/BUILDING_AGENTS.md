@@ -1,4 +1,4 @@
-# Building Agents with Investment Intelligence Platform
+# Building Agents with Hospital Control Tower
 
 This guide walks through the agent architecture in this project. It's designed for developers who want to understand how multi-agent systems, tool-augmented LLMs, and agent-in-app patterns work on Databricks.
 
@@ -95,14 +95,11 @@ Tools are defined in `app/agent/tools.py` using the LangChain `@tool` decorator.
 ```python
 @tool
 def execute_sql(query: str) -> str:
-    """Execute read-only SQL query against investment portfolio data.
+    """Execute read-only SQL query against medical logistics data.
 
     Available tables:
-    - dim_funds: Fund investments (fund_id, manager, strategy, performance, rebalance_day_of_week, is_watchlist)
-    - fact_performance: Fund performance (fund_id, metric_name, category, unit_value, total_return)
-    - fact_holdings: Portfolio holdings (date, manager, strategy, holding_type, exposure_pct, cost_basis)
-    - fact_capital_flows: Capital flows (fund_id, flow_amount, flow_type)
-    - fact_operational_kpis: Daily KPIs (avg_performance, avg_flow_minutes, concentration_pct, watchlist_rate)
+    - dim_encounters: Patient encounters (encounter_id, hospital, ...)
+    - fact_drug_costs: Drug costs (encounter_id, drug_name, total_cost, ...)
     ...
     """
     # Validate: only SELECT allowed
@@ -121,8 +118,8 @@ Key patterns:
 Tools are grouped into collections for different agent modes:
 
 ```python
-QUICK_TOOLS = [execute_sql, search_fund_documents, search_ips, ...]
-DEEP_TOOLS  = [execute_sql, search_fund_documents, search_ips, ..., write_analysis]
+QUICK_TOOLS = [execute_sql, search_encounters, search_sops, ...]
+DEEP_TOOLS  = [execute_sql, search_encounters, search_sops, ..., write_analysis]
 ```
 
 Quick mode gets a smaller tool set for speed. Deep mode gets everything, including `write_analysis` for persisting insights.
@@ -133,12 +130,12 @@ Quick mode gets a smaller tool set for speed. Deep mode gets everything, includi
 
 ```python
 @tool
-def analyze_watchlist_risk(strategy: Optional[str] = None) -> str:
-    """Analyze watchlist/underperformance risk factors by strategy.
+def analyze_readmission_risk(department: Optional[str] = None) -> str:
+    """Analyze readmission risk factors by department.
 
-    Examines correlation between performance, concentration, and watchlist rates.
+    Examines correlation between LOS, payer mix, and readmission rates.
     """
-    query = f"SELECT ... FROM {FUNDS_TABLE} ..."
+    query = f"SELECT ... FROM {ENCOUNTERS_TABLE} ..."
     result = _execute_query(query)
     return json.dumps({"risk_factors": result.get("rows", [])})
 ```
@@ -146,7 +143,7 @@ def analyze_watchlist_risk(strategy: Optional[str] = None) -> str:
 2. Add it to the relevant tool collections at the bottom of `tools.py`:
 
 ```python
-DEEP_TOOLS = [..., analyze_watchlist_risk]
+DEEP_TOOLS = [..., analyze_readmission_risk]
 ```
 
 3. If the tool is relevant to deep analysis, the retrieval and analyst agents will discover it automatically (they receive all `DEEP_TOOLS`). If you want the planner to know about it, update the `PLANNER_PROMPT` in `graph.py`.

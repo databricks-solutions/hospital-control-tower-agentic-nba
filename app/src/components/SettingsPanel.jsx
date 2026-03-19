@@ -10,12 +10,12 @@ const INTERVAL_PRESETS = [
 ]
 
 const DEFAULT_CAPABILITIES = [
-  { id: 'concentration_analysis', label: 'Portfolio Concentration Analysis', enabled: true },
-  { id: 'performance_monitoring', label: 'Fund Performance Monitoring', enabled: true },
-  { id: 'investment_action_report', label: 'Investment Action Report', enabled: true },
-  { id: 'flow_analysis', label: 'Fund Flow Analysis', enabled: true },
-  { id: 'exposure_analysis', label: 'Exposure Shift Analysis', enabled: true },
-  { id: 'policy_compliance', label: 'Investment Policy Compliance', enabled: true },
+  { id: 'los_analysis', label: 'Length of Stay Analysis', enabled: true },
+  { id: 'cost_monitoring', label: 'Drug Cost Monitoring', enabled: true },
+  { id: 'next_best_action_report', label: 'Recommended Actions Report', enabled: true },
+  { id: 'ed_performance', label: 'ED Performance', enabled: true },
+  { id: 'staffing_analysis', label: 'Staffing Optimization', enabled: true },
+  { id: 'compliance_monitoring', label: 'Compliance Monitoring', enabled: true },
 ]
 
 export default function SettingsPanel({ autonomousStatus, onClose, onSave }) {

@@ -2,13 +2,13 @@
 # MAGIC %md
 # MAGIC # Grant Permissions to App Service Principal
 # MAGIC 
-# MAGIC Grants permissions for the Investment Portfolio Intelligence app to access all data tables, models, and vector search.
+# MAGIC Grants permissions for the Hospital Control Tower app to access all data tables, models, and vector search.
 
 # COMMAND ----------
 
 # Configuration
 dbutils.widgets.text("var.catalog", "", "Catalog")
-dbutils.widgets.text("var.schema", "investment_intel", "Schema")
+dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
 dbutils.widgets.text("var.app_name", "dev-hospital-control-tower", "App Name")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
@@ -71,21 +71,21 @@ print(f"OK: Granted CREATE TABLE on {CATALOG}.{SCHEMA} to {PRINCIPAL}")
 
 # Tables the app reads only
 READ_TABLES = [
-    "fact_portfolio_kpis",
-    "portfolio_overview",
-    "fund_documents_for_embedding",
-    "investment_policy_docs",
-    "investment_policy_parsed",
-    "investment_policy_chunks",
+    "fact_operational_kpis",
+    "hospital_overview",
+    "encounters_for_embedding",
+    "sop_pdfs",
+    "sop_parsed",
+    "sop_chunks",
 ]
 
 # Tables the app reads AND writes (INSERT/UPDATE/DELETE)
 WRITE_TABLES = [
-    "dim_funds",
+    "dim_encounters",
     "analysis_outputs",
-    "fact_fund_performance",
-    "fact_portfolio_holdings",
-    "fact_fund_flows",
+    "fact_drug_costs",
+    "fact_staffing",
+    "fact_ed_wait_times",
 ]
 
 print("Granting SELECT permissions:")
@@ -113,14 +113,13 @@ for table in WRITE_TABLES:
 
 dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 VECTOR_ENDPOINT = dbutils.widgets.get("var.vector_search_endpoint")
-FUND_DOCUMENTS_VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
-INVESTMENT_POLICY_VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.investment_policy_vector_index"
+ENCOUNTER_VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.encounters_vector_index"
+SOP_VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.sop_vector_index"
 
 print(f"Vector Endpoint: {VECTOR_ENDPOINT}")
-print(f"Fund Documents Vector Index: {FUND_DOCUMENTS_VECTOR_INDEX}")
-print(f"Investment Policy Vector Index: {INVESTMENT_POLICY_VECTOR_INDEX}")
+print(f"Encounter Vector Index: {ENCOUNTER_VECTOR_INDEX}")
+print(f"SOP Vector Index: {SOP_VECTOR_INDEX}")
 
-# Grant CAN_USE on vector search endpoint (needed to query indexes hosted on it)
 try:
     from databricks.sdk.service.iam import AccessControlRequest, PermissionLevel
     w.permissions.update(
@@ -137,10 +136,13 @@ try:
 except Exception as e:
     print(f"SKIP: Vector endpoint permission: {e}")
 
-# VS index SELECT grants (fund_documents_vector_index, investment_policy_vector_index)
-# and their source tables are now handled automatically via uc_securable resources
-# declared in resources/apps.yml. No manual grants needed here.
-print("\nVector index SELECT grants: handled by uc_securable app resources in apps.yml")
+print("\nGranting SELECT on vector indexes:")
+for idx_name in [ENCOUNTER_VECTOR_INDEX, SOP_VECTOR_INDEX]:
+    try:
+        spark.sql(f"GRANT SELECT ON TABLE {idx_name} TO {PRINCIPAL}")
+        print(f"  OK: SELECT on {idx_name}")
+    except Exception as e:
+        print(f"  SKIP: SELECT on {idx_name}: {e}")
 
 # COMMAND ----------
 
@@ -151,14 +153,12 @@ print("\nVector index SELECT grants: handled by uc_securable app resources in ap
 
 MODEL_ENDPOINTS = [
     "databricks-claude-sonnet-4-5",
-    "databricks-gte-large-en",  # embedding model used by vector search delta sync indexes
 ]
-
-from databricks.sdk.service.serving import ServingEndpointAccessControlRequest, ServingEndpointPermissionLevel
 
 for endpoint_name in MODEL_ENDPOINTS:
     try:
-        w.serving_endpoints.update_permissions(
+        from databricks.sdk.service.serving import ServingEndpointAccessControlRequest, ServingEndpointPermissionLevel
+        w.serving_endpoints.set_permissions(
             serving_endpoint_id=endpoint_name,
             access_control_list=[
                 ServingEndpointAccessControlRequest(
@@ -191,10 +191,10 @@ print(f"  - SELECT on: {', '.join(READ_TABLES)}")
 print(f"  - SELECT + MODIFY on: {', '.join(WRITE_TABLES)}")
 print(f"")
 print("Vector Search:")
-print(f"  - CAN_USE on endpoint: {VECTOR_ENDPOINT}")
-print(f"  - Index SELECT grants: via uc_securable in apps.yml (auto-granted)")
+print(f"  - CAN_USE on {VECTOR_ENDPOINT}")
+print(f"  - Encounter Index: {ENCOUNTER_VECTOR_INDEX}")
+print(f"  - SOP Index: {SOP_VECTOR_INDEX}")
 print(f"")
-print("Serving Endpoints:")
+print("Models:")
 print(f"  - CAN_QUERY on: {', '.join(MODEL_ENDPOINTS)}")
-print(f"  (includes embedding model for vector search)")
 print("=" * 60)

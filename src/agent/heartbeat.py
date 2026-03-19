@@ -25,44 +25,44 @@ class HeartbeatCapability:
 
 CAPABILITIES = [
     HeartbeatCapability(
-        name="performance_drivers",
-        prompt="""Monitor fund performance across portfolios for anomalies and drivers.
+        name="cost_monitoring",
+        prompt="""Monitor drug costs across hospitals for anomalies and spikes.
 
-1. Query fact_fund_performance for the last 30 days grouped by fund_name and holding_category
-2. Compare current month returns to prior months - flag any >30% swings
-3. Identify the top 10 highest-return holdings and check for concentration risk
-4. Check fact_portfolio_kpis for return_per_holding trends by fund
+1. Query fact_drug_costs for the last 30 days grouped by hospital and drug_category
+2. Compare current month spend to prior months - flag any >30% increases
+3. Identify the top 10 highest-cost drugs and check for unit cost outliers
+4. Check fact_operational_kpis for drug_cost_per_encounter trends by hospital
 
-Provide insights on performance drivers and policy-grounded recommendations.
-Save your analysis using write_analysis with type 'performance_drivers'.""",
-        analysis_type="performance_drivers",
+Provide insights on cost anomalies and SOP-grounded recommendations.
+Save your analysis using write_analysis with type 'cost_monitoring'.""",
+        analysis_type="cost_monitoring",
     ),
     HeartbeatCapability(
-        name="concentration",
-        prompt="""Analyze portfolio concentration patterns and diversification opportunities.
+        name="los_analysis",
+        prompt="""Analyze length of stay patterns and identify reduction opportunities.
 
-1. Query dim_funds for holding period by fund_name, sector, and rebalance day of week
-2. Identify sectors with avg holding period > 5.0 quarters
-3. Analyze rebalance day effect - compare Monday rebalances to other days
-4. Check rebalance rates for correlation with short holding periods
-5. Compare Fund_A concentration to Fund_B and Fund_C
+1. Query dim_encounters for LOS by hospital, department, and discharge day of week
+2. Identify departments with avg LOS > 5.0 days
+3. Analyze Monday discharge effect - compare Monday LOS to other days
+4. Check readmission rates for correlation with short LOS (premature discharge)
+5. Compare Hospital_A LOS to Hospital_B and Hospital_C
 
-Recommend specific actions to improve diversification with policy citations.
-Save your analysis using write_analysis with type 'concentration'.""",
-        analysis_type="concentration",
+Recommend specific actions to reduce LOS with SOP citations.
+Save your analysis using write_analysis with type 'los_analysis'.""",
+        analysis_type="los_analysis",
     ),
     HeartbeatCapability(
-        name="exposure_shifts",
-        prompt="""Analyze portfolio exposure patterns and allocation efficiency.
+        name="staffing_optimization",
+        prompt="""Analyze staffing patterns and contract labor efficiency.
 
-1. Query fact_portfolio_holdings for exposure percentage by sector
-2. Identify sectors where partial positions > 25% of total holdings
-3. Calculate allocation differential: full vs partial positions per sector
-4. Check trends - is exposure concentration increasing?
+1. Query fact_staffing for contract labor percentage by department
+2. Identify departments where contract labor > 25% of total FTEs
+3. Calculate cost differential: contract vs full-time per department
+4. Check trends - is contract labor increasing?
 
-Recommend optimal allocation strategies.
-Save your analysis using write_analysis with type 'exposure_shifts'.""",
-        analysis_type="exposure_shifts",
+Recommend optimal staffing strategies.
+Save your analysis using write_analysis with type 'staffing_analysis'.""",
+        analysis_type="staffing_analysis",
     ),
 ]
 

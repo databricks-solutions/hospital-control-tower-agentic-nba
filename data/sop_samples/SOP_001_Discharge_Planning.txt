@@ -1,0 +1,89 @@
+MEMORIAL HEALTH SYSTEM -- STANDARD OPERATING PROCEDURE
+Document: SOP-001-DP
+Title: Patient Discharge Planning and Length of Stay Management
+Effective Date: 2024-01-15
+Review Date: 2025-01-15
+Department: All Clinical Departments
+Approved By: Chief Medical Officer, VP of Operations
+
+1. PURPOSE
+
+This procedure establishes standardized discharge planning protocols to reduce
+avoidable extended lengths of stay, minimize readmissions, and ensure safe transitions
+of care. Target average LOS: under 5.0 days system-wide.
+
+2. SCOPE
+
+Applies to all inpatient encounters across Memorial Health System hospitals
+(Hospital A, Hospital B, Hospital C). Covers admission through discharge and 30-day
+post-discharge follow-up.
+
+3. DISCHARGE PLANNING INITIATION
+
+3.1 Discharge planning begins within 24 hours of admission.
+3.2 The attending physician documents an estimated discharge date (EDD) in the EHR.
+3.3 Care coordinators review all admissions daily by 10:00 AM for discharge readiness.
+3.4 Patients with LOS > 3 days trigger an automatic escalation to the department
+    discharge planning lead.
+
+4. MONDAY DISCHARGE PROTOCOL
+
+4.1 Background: Analysis shows patients discharged on Mondays have 15-20% higher LOS
+    than other weekdays due to weekend care gaps and delayed weekend rounding.
+
+4.2 Mitigation Steps:
+    a) Weekend rounding teams must complete discharge assessments by Saturday 2:00 PM
+       for all patients with EDD of Sunday or Monday.
+    b) Pharmacy must prepare discharge medications for Monday discharges by Sunday
+       5:00 PM.
+    c) Transportation and home health referrals for Monday discharges must be
+       confirmed by Friday 3:00 PM.
+    d) Department heads review Monday discharge volumes each Friday and staff
+       accordingly.
+
+4.3 Performance Target: Reduce Monday LOS gap to < 5% above weekday average within
+    6 months of implementation.
+
+5. LOS ESCALATION THRESHOLDS
+
+5.1 LOS > 5 days: Automatic notification to department medical director.
+5.2 LOS > 7 days: Case review by utilization management committee within 24 hours.
+5.3 LOS > 10 days: Executive escalation to VP of Operations with barrier analysis.
+5.4 For each escalation tier, the reviewing authority must document:
+    - Primary barrier to discharge
+    - Action plan with owner and target date
+    - Whether the stay is clinically appropriate
+
+6. READMISSION PREVENTION
+
+6.1 All patients with diagnoses associated with > 15% readmission risk receive:
+    - Post-discharge phone call within 48 hours
+    - Follow-up appointment scheduled before discharge
+    - Medication reconciliation completed and reviewed with patient
+6.2 Patients readmitted within 30 days trigger a root-cause analysis led by the
+    department quality lead.
+6.3 Readmission rate target: < 10% system-wide. Departments exceeding 12% for two
+    consecutive months enter a performance improvement plan.
+
+7. DEPARTMENT-SPECIFIC GUIDELINES
+
+7.1 Cardiology: Average LOS target 4.5 days. Heart failure patients require
+    standardized discharge checklist (weight monitoring plan, medication list,
+    dietary counseling, follow-up within 7 days).
+7.2 Orthopedics: Average LOS target 3.0 days for elective joint replacement.
+    Same-day physical therapy consult required.
+7.3 General Surgery: Average LOS target 3.5 days. Enhanced recovery protocol
+    (ERAS) compliance tracked monthly.
+
+8. REPORTING AND COMPLIANCE
+
+8.1 Department heads receive weekly LOS dashboards by hospital and department.
+8.2 Monthly LOS review at Operations Committee with trend analysis.
+8.3 Quarterly readmission root-cause analysis report to CMO.
+8.4 Annual review of this SOP by Quality Improvement Committee.
+
+9. REFERENCES
+
+- CMS Conditions of Participation, Discharge Planning (42 CFR 482.43)
+- Joint Commission Standard PC.04.01.01 (Discharge Planning)
+- Institute for Healthcare Improvement: Reducing Avoidable Readmissions

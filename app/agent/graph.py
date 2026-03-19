@@ -17,10 +17,10 @@ from .config import (
 )
 from .tools import (
     QUICK_TOOLS,
-    execute_sql, search_fund_documents, search_investment_policies,
-    analyze_performance_drivers, analyze_concentration,
-    check_fund_flows, check_exposure_shifts,
-    check_portfolio_kpis, check_data_freshness,
+    execute_sql, search_encounters, search_sops,
+    analyze_cost_drivers, analyze_los_factors,
+    check_ed_performance, check_staffing_efficiency,
+    check_operational_kpis, check_data_freshness,
     write_analysis, _execute_query,
 )
 from .orchestrator import select_tools_for_context, get_system_prompt_for_context
@@ -52,7 +52,7 @@ except ImportError:
 for _name in ("LiteLLM", "LiteLLM Router", "LiteLLM Proxy", "litellm"):
     logging.getLogger(_name).setLevel(logging.CRITICAL)
 
-ANALYSIS_TYPES = ["performance_monitoring", "concentration_analysis", "flow_analysis", "exposure_analysis", "policy_compliance"]
+ANALYSIS_TYPES = ["cost_monitoring", "los_analysis", "ed_performance", "staffing_analysis", "compliance_monitoring"]
 
 _local = threading.local()
 
@@ -162,7 +162,7 @@ class DeepAnalysisState(TypedDict):
 
 # ---- Sub-agent system prompts ----
 
-SUPERVISOR_PROMPT = """You are a supervisor coordinating a deep analysis of investment portfolio data.
+SUPERVISOR_PROMPT = """You are a supervisor coordinating a deep analysis of hospital operations data.
 
 Given the user's question and the current analysis state, decide the single next step.
 Respond with EXACTLY one word from: CLARIFY, PLAN, RETRIEVE, ANALYZE, RESPOND.
@@ -177,22 +177,17 @@ Decision rules:
 Current state will be provided. Return ONLY one word."""
 
 
-PLANNER_PROMPT = f"""You are a planning specialist for investment portfolio analysis.
+PLANNER_PROMPT = f"""You are a planning specialist for hospital operations analysis.
 
 Given the user question and prerequisite analysis status, produce a concise numbered plan
 of data-gathering steps the Retrieval agent should execute.
 
 Available tables in {CATALOG}.{SCHEMA}:
-- dim_funds (fund_id, fund_name, manager_name, strategy, vintage_year, aum, commitment, status, domicile, inception_date)
-- fact_fund_performance (fund_id, date, nav, monthly_return, ytd_return, itd_return, benchmark_return, alpha)
-- fact_portfolio_holdings (fund_id, date, position_name, sector, geography, pct_nav, market_value, change_from_prior)
-- fact_fund_flows (fund_id, date, capital_calls, distributions, net_flow, commitment_remaining, liquidity_terms)
-- fact_portfolio_kpis (date, portfolio_segment, total_aum, weighted_avg_return, concentration_top5_pct, benchmark_spread, manager_count)
-- portfolio_overview
+- dim_encounters, fact_drug_costs, fact_staffing, fact_ed_wait_times, fact_operational_kpis, hospital_overview
 
 Available tools the Retrieval agent can call:
-- execute_sql, search_fund_documents, search_investment_policies, analyze_performance_drivers, analyze_concentration,
-  check_fund_flows, check_exposure_shifts, check_portfolio_kpis, check_data_freshness
+- execute_sql, search_encounters, search_sops, analyze_cost_drivers, analyze_los_factors,
+  check_ed_performance, check_staffing_efficiency, check_operational_kpis, check_data_freshness
 
 IMPORTANT:
 - If the prerequisite status shows a relevant analysis is MISSING, include a note:
@@ -200,13 +195,11 @@ IMPORTANT:
   or the Retrieval agent should gather the raw data directly."
 - Focus on what data is needed and which tools to use. Be specific about SQL queries.
 - Keep the plan to 3-6 steps max.
-- ALWAYS include a step to search_investment_policies for the relevant policy context
-  (thresholds, guidelines, procedures) so the Analyst can ground recommendations in firm policy.
 
 Return the plan as a numbered list."""
 
 
-RETRIEVAL_PROMPT = f"""You are a data retrieval specialist for investment portfolio analysis.
+RETRIEVAL_PROMPT = f"""You are a data retrieval specialist for hospital operations.
 
 Execute the data-gathering plan provided. For EACH piece of data you retrieve, note which
 tool provided it so the Analyst can cite sources.
@@ -219,7 +212,7 @@ Gather all evidence requested in the plan. Be thorough but efficient.
 Use {CATALOG}.{SCHEMA} as the catalog/schema for SQL queries."""
 
 
-ANALYST_PROMPT = """You are a senior investment analyst. You interpret data and produce
+ANALYST_PROMPT = """You are a senior hospital operations analyst. You interpret data and produce
 actionable recommendations.
 
 Given the retrieved evidence, produce a structured analysis with these sections:
@@ -242,7 +235,7 @@ For each recommendation use this format (with a blank line between each item):
 
 - **Expected Impact**: Quantified where possible
 
-- **IPS/Policy Reference**: ALWAYS cite the specific IPS section and threshold (e.g., "IPS Section 3.1: single GP max 8% NAV"). If no policy was retrieved, note "No applicable IPS provision found" so the team knows it was checked.
+- **SOP Reference**: Cite relevant procedure if found via search_sops
 
 - **Priority**: High / Medium / Low
 
@@ -325,10 +318,10 @@ def retrieval_node(state: DeepAnalysisState) -> dict:
     _emit_progress("retrieving", "Gathering evidence from data sources...", agent="retrieval")
     try:
         retrieval_tools = [
-            execute_sql, search_fund_documents, search_investment_policies,
-            analyze_performance_drivers, analyze_concentration,
-            check_fund_flows, check_exposure_shifts,
-            check_portfolio_kpis, check_data_freshness,
+            execute_sql, search_encounters, search_sops,
+            analyze_cost_drivers, analyze_los_factors,
+            check_ed_performance, check_staffing_efficiency,
+            check_operational_kpis, check_data_freshness,
         ]
         llm = get_llm()
         agent = create_react_agent(llm, retrieval_tools)
@@ -572,19 +565,17 @@ def invoke_agent(message: str, mode: str = "orchestrator", history: Optional[Lis
         return invoke_deep_agent(message, history)
 
 
-PLOT_SYSTEM_PROMPT = f"""You are a data visualization agent for an investment intelligence platform.
+PLOT_SYSTEM_PROMPT = f"""You are a data visualization agent for a hospital operations control tower.
 
-You will receive the text of an agent response about investment portfolio data.
+You will receive the text of an agent response about hospital operations data.
 Your job is to determine if the response contains data that can be plotted, and if so,
 run a SQL query to get precise numbers and return a chart specification.
 
 Available tables in {CATALOG}.{SCHEMA}:
-- dim_funds: fund_id, fund_name, manager_name, strategy, vintage_year, aum, commitment, status, domicile, inception_date
-- fact_fund_performance: fund_id, date, nav, monthly_return, ytd_return, itd_return, benchmark_return, alpha
-- fact_portfolio_holdings: fund_id, date, position_name, sector, geography, pct_nav, market_value, change_from_prior
-- fact_fund_flows: fund_id, date, capital_calls, distributions, net_flow, commitment_remaining, liquidity_terms
-- fact_portfolio_kpis: date, portfolio_segment, total_aum, weighted_avg_return, concentration_top5_pct, benchmark_spread, manager_count
-- portfolio_overview: strategy, fund_count, total_aum, avg_aum, manager_count, watchlist_count
+- dim_encounters: encounter_id, hospital, department, admit_date, discharge_date, los_days, payer, is_readmission
+- fact_drug_costs: encounter_id, date, hospital, department, drug_name, drug_category, unit_cost, quantity, total_cost
+- fact_ed_wait_times: encounter_id, arrival_time, acuity_level, wait_minutes, hospital
+- fact_staffing: date, hospital, department, staff_type, fte_count
 
 Use the execute_sql tool to query the data, then return ONLY a JSON object (no markdown, no extra text) in this exact format:
 

@@ -1,8 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Setup Vector Search for Investment Portfolio Intelligence
+# MAGIC # Setup Vector Search for Hospital Control Tower
 # MAGIC
-# MAGIC Creates embeddings from fund document data for semantic search.
+# MAGIC Creates embeddings from all encounter data for semantic search.
 
 # COMMAND ----------
 
@@ -13,13 +13,13 @@
 
 # Configuration
 dbutils.widgets.text("var.catalog", "", "Catalog")
-dbutils.widgets.text("var.schema", "investment_intel", "Schema")
+dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
 dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 VECTOR_ENDPOINT = dbutils.widgets.get("var.vector_search_endpoint")
-VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
-SOURCE_TABLE = f"{CATALOG}.{SCHEMA}.fund_documents_for_embedding"
+VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.encounters_vector_index"
+SOURCE_TABLE = f"{CATALOG}.{SCHEMA}.encounters_for_embedding"
 
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
@@ -72,46 +72,55 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Create Fund Document Embedding Table
+# MAGIC ## 2. Create Rich Embedding Table (combining all data)
 
 # COMMAND ----------
 
 # Check source table exists
 try:
-    count = spark.sql(f"SELECT COUNT(*) FROM {CATALOG}.{SCHEMA}.dim_funds").collect()[0][0]
-    print(f"Source table dim_funds exists with {count} rows")
+    count = spark.sql(f"SELECT COUNT(*) FROM {CATALOG}.{SCHEMA}.dim_encounters").collect()[0][0]
+    print(f"Source table dim_encounters exists with {count} rows")
 except Exception as e:
-    print(f"ERROR: dim_funds not found: {e}")
+    print(f"ERROR: dim_encounters not found: {e}")
     print("Please ensure the source data exists before running this notebook")
     dbutils.notebook.exit("Source table not found")
 
 # COMMAND ----------
 
-# Create enriched embedding table with fund document text
+# Create enriched embedding table with text from multiple tables
 spark.sql(f"""
 CREATE OR REPLACE TABLE {SOURCE_TABLE}
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 AS
+WITH drug_agg AS (
+    SELECT encounter_id, CONCAT('Total drug cost: $', ROUND(SUM(total_cost), 2)) as drug_summary
+    FROM {CATALOG}.{SCHEMA}.fact_drug_costs
+    GROUP BY encounter_id
+),
+ed_info AS (
+    SELECT encounter_id, MAX(CONCAT('ED wait time: ', ROUND(wait_minutes, 1), ' minutes, acuity ', acuity_level)) as ed_summary
+    FROM {CATALOG}.{SCHEMA}.fact_ed_wait_times
+    GROUP BY encounter_id
+)
 SELECT 
-    f.fund_id as fund_id,
-    f.fund_name,
-    f.manager_name,
-    f.strategy,
-    f.vintage_year,
-    f.aum,
-    f.commitment,
-    f.status,
-    f.domicile,
+    e.encounter_id as encounter_id,
+    e.hospital,
+    e.department,
+    e.payer,
+    e.is_readmission,
     CONCAT(
-        'Fund ', f.fund_name, ' managed by ', f.manager_name, '. ',
-        'Strategy: ', COALESCE(f.strategy, 'unknown'), '. ',
-        'Vintage year: ', COALESCE(CAST(f.vintage_year AS STRING), 'unknown'), '. ',
-        'AUM: $', COALESCE(CAST(ROUND(f.aum, 2) AS STRING), 'unknown'), 'M. ',
-        'Commitment: $', COALESCE(CAST(ROUND(f.commitment, 2) AS STRING), 'unknown'), 'M. ',
-        'Status: ', COALESCE(f.status, 'unknown'), '. ',
-        'Domicile: ', COALESCE(f.domicile, 'unknown'), '.'
+        'Encounter ', e.encounter_id, ' at ', e.hospital, ' in ', e.department, '. ',
+        'Payer: ', e.payer, '. ',
+        CASE WHEN e.is_readmission THEN 'READMISSION. ' ELSE 'No readmission. ' END,
+        'Length of stay: ', COALESCE(CAST(e.los_days AS STRING), 'unknown'), ' days. ',
+        'Discharge day: ', COALESCE(e.discharge_day_of_week, 'unknown'), '. ',
+        'DRG: ', COALESCE(e.drg_code, 'unknown'), '. ',
+        COALESCE(d.drug_summary, ''), ' ',
+        COALESCE(ed.ed_summary, '')
     ) as text_content
-FROM {CATALOG}.{SCHEMA}.dim_funds f
+FROM {CATALOG}.{SCHEMA}.dim_encounters e
+LEFT JOIN drug_agg d ON d.encounter_id = e.encounter_id
+LEFT JOIN ed_info ed ON ed.encounter_id = e.encounter_id
 """)
 
 count = spark.sql(f"SELECT COUNT(*) FROM {SOURCE_TABLE}").collect()[0][0]
@@ -120,7 +129,7 @@ print(f"Created {SOURCE_TABLE} with {count} rows")
 # COMMAND ----------
 
 # Display sample
-display(spark.sql(f"SELECT fund_id, fund_name, manager_name, strategy, status, LEFT(text_content, 200) as text_preview FROM {SOURCE_TABLE} LIMIT 5"))
+display(spark.sql(f"SELECT encounter_id, hospital, department, is_readmission, LEFT(text_content, 200) as text_preview FROM {SOURCE_TABLE} LIMIT 5"))
 
 # COMMAND ----------
 
@@ -155,7 +164,7 @@ else:
             index_name=VECTOR_INDEX,
             source_table_name=SOURCE_TABLE,
             pipeline_type="TRIGGERED",
-            primary_key="fund_id",
+            primary_key="encounter_id",
             embedding_source_column="text_content",
             embedding_model_endpoint_name="databricks-gte-large-en"
         )
@@ -186,8 +195,8 @@ time.sleep(5)
 try:
     index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX)
     results = index.similarity_search(
-        query_text="Private Credit funds with high AUM",
-        columns=["fund_id", "fund_name", "manager_name", "strategy", "status"],
+        query_text="encounters with readmissions at Hospital A",
+        columns=["encounter_id", "hospital", "is_readmission"],
         num_results=3
     )
     print("Test search results:")

@@ -1,8 +1,8 @@
 resources:
   apps:
-    investment_intel_app:
-      name: "${bundle.target}-investment-intel"
-      description: "AI-powered investment portfolio intelligence"
+    hospital_ops_app:
+      name: "${bundle.target}-hospital-control-tower"
+      description: "AI-powered operations intelligence for hospital logistics"
       source_code_path: ../app
 
       resources:
@@ -14,13 +14,13 @@ resources:
           serving_endpoint:
             name: databricks-gte-large-en
             permission: "CAN_QUERY"
-        - name: fund_docs_index
+        - name: encounters_index
           uc_securable:
             securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.fund_documents_vector_index
+            securable_full_name: ${var.catalog}.${var.schema}.encounters_vector_index
             permission: SELECT
-        - name: ips_index
+        - name: sop_index
           uc_securable:
             securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.investment_policy_vector_index
+            securable_full_name: ${var.catalog}.${var.schema}.sop_vector_index
             permission: SELECT

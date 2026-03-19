@@ -16,7 +16,7 @@ PROFILE_ARG=""
 [[ -n "$PROFILE" && "$PROFILE" != --* ]] && PROFILE_ARG="-p $PROFILE"
 
 echo "=========================================="
-echo " Investment Intel -- Full Setup"
+echo " Hospital Control Tower -- Full Setup"
 echo " Target: $TARGET"
 echo " Skip data: $SKIP_DATA"
 echo "=========================================="
@@ -110,7 +110,7 @@ env:
     value: "false"
 
   - name: MLFLOW_EXPERIMENT
-    value: "/Shared/investment-intelligence-agent"
+    value: "/Shared/hospital-control-tower-agent"
 APPYAML
 
 echo "  app/app.yaml written"
@@ -140,6 +140,6 @@ echo ""
 echo "=========================================="
 echo " Setup complete!"
 echo ""
-echo " App: ${TARGET}-investment-intel"
+echo " App: ${TARGET}-hospital-control-tower"
 echo " Open your Databricks workspace > Apps"
 echo "=========================================="

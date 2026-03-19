@@ -114,13 +114,13 @@ function App() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && !data.error) {
-        addToast(`Injected ${data.encounters || count} underperforming positions + flow/exposure data`)
+        addToast(`Injected ${data.encounters || count} anomalous encounters + ED/drug/staffing data`)
         setTimeout(() => { fetchHealthScore(); setRefreshKey(k => k + 1) }, 2000)
       } else {
-        addToast(`Inject risk failed: ${data.error || res.statusText}`, 'error')
+        addToast(`Inject anomaly failed: ${data.error || res.statusText}`, 'error')
       }
     } catch (err) {
-      addToast(`Inject risk failed: ${err.message}`, 'error')
+      addToast(`Inject anomaly failed: ${err.message}`, 'error')
     } finally {
       setLoading('injectAnomaly', false)
     }
@@ -136,13 +136,13 @@ function App() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && !data.error) {
-        addToast(`Injected ${data.encounters || count} healthy returns + flow/exposure data`)
+        addToast(`Injected ${data.encounters || count} healthy encounters + ED/drug/staffing data`)
         setTimeout(() => { fetchHealthScore(); setRefreshKey(k => k + 1) }, 2000)
       } else {
-        addToast(`Inject returns failed: ${data.error || res.statusText}`, 'error')
+        addToast(`Inject good failed: ${data.error || res.statusText}`, 'error')
       }
     } catch (err) {
-      addToast(`Inject returns failed: ${err.message}`, 'error')
+      addToast(`Inject good failed: ${err.message}`, 'error')
     } finally {
       setLoading('injectGood', false)
     }

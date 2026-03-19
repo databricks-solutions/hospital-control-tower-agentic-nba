@@ -1,10 +1,10 @@
 """Pre-agent orchestrator for ChatGPT-style tool selection."""
 import os
 from typing import List, Dict, Any, Optional
-from .tools import execute_sql, search_fund_documents, write_analysis
+from .tools import execute_sql, search_encounters, write_analysis
 
 CATALOG = os.environ.get("CATALOG", "")
-SCHEMA = os.environ.get("SCHEMA", "investment_intel")
+SCHEMA = os.environ.get("SCHEMA", "med_logistics_nba")
 
 
 def classify_intent(message: str) -> str:
@@ -29,16 +29,16 @@ def select_tools_for_context(message: str, user_context: Optional[Dict[str, Any]
     if intent == "query":
         return [execute_sql]
     elif intent == "search":
-        return [search_fund_documents]
+        return [search_encounters]
     elif intent == "analyze":
-        return [execute_sql, search_fund_documents, write_analysis]
+        return [execute_sql, search_encounters, write_analysis]
     else:
-        return [execute_sql, search_fund_documents]
+        return [execute_sql, search_encounters]
 
 
 def get_system_prompt_for_context(message: str, tools: List, user_context: Optional[Dict[str, Any]] = None) -> str:
     tool_names = [t.name for t in tools]
-    base_prompt = f"""You are an investment portfolio intelligence assistant in Quick Query mode.
+    base_prompt = f"""You are a medical logistics operations assistant in Quick Query mode.
 
 BEHAVIOR:
 - Be concise. Return the requested data with a 1-2 sentence interpretation.
@@ -49,12 +49,12 @@ BEHAVIOR:
 - For simple factual questions, answer directly with data.
 
 Available data in {CATALOG}.{SCHEMA}:
-- dim_funds: Fund holdings (fund_name, sector, holding period, rebalance day, rebalance)
-- fact_fund_performance: Fund performance by holding, category
-- fact_portfolio_holdings: Portfolio holdings by type (full_position, partial, rebalance)
-- fact_fund_flows: Fund flow metrics by risk level
-- fact_portfolio_kpis: Daily KPIs per fund/sector
-- portfolio_overview: Summary VIEW
+- dim_encounters: Patient encounters (hospital, department, LOS, discharge day, payer, readmission)
+- fact_drug_costs: Drug costs by encounter, drug, category
+- fact_staffing: Staffing levels by type (full_time, contract, per_diem)
+- fact_ed_wait_times: ED visit metrics by acuity level
+- fact_operational_kpis: Daily KPIs per hospital/department
+- hospital_overview: Summary VIEW
 """
     if "execute_sql" in tool_names:
         base_prompt += f"\nWhen writing SQL, use catalog/schema: {CATALOG}.{SCHEMA}\n"

@@ -1,7 +1,7 @@
 resources:
   jobs:
     setup_lakebase:
-      name: "${bundle.target}-investment-intel-setup-lakebase"
+      name: "${bundle.target}-hospital-control-tower-setup-lakebase"
       description: "Setup Lakebase instance and analysis_outputs table"
       tasks:
         - task_key: setup_lakebase
@@ -22,8 +22,8 @@ resources:
               ResourceClass: SingleNode
 
     setup_vector_search:
-      name: "${bundle.target}-investment-intel-setup-vector-search"
-      description: "Setup Vector Search index for fund documents"
+      name: "${bundle.target}-hospital-control-tower-setup-vector-search"
+      description: "Setup Vector Search index for encounter data"
       tasks:
         - task_key: setup_vector_search
           notebook_task:
@@ -44,7 +44,7 @@ resources:
               ResourceClass: SingleNode
 
     grant_permissions:
-      name: "${bundle.target}-investment-intel-grant-permissions"
+      name: "${bundle.target}-hospital-control-tower-grant-permissions"
       description: "Grant permissions to app service principal"
       tasks:
         - task_key: grant_permissions
@@ -56,7 +56,7 @@ resources:
             base_parameters:
               "var.catalog": ${var.catalog}
               "var.schema": ${var.schema}
-              "var.app_name": "${bundle.target}-investment-intel"
+              "var.app_name": "${bundle.target}-hospital-control-tower"
               "var.vector_search_endpoint": ${var.vector_search_endpoint}
               "var.service_principal_id": ""
               "var.service_principal_name": ""
@@ -72,7 +72,7 @@ resources:
               ResourceClass: SingleNode
 
     diagnostic_check:
-      name: "${bundle.target}-investment-intel-diagnostic"
+      name: "${bundle.target}-hospital-control-tower-diagnostic"
       description: "Run diagnostic checks for app prerequisites"
       tasks:
         - task_key: diagnostic_check
@@ -81,7 +81,7 @@ resources:
             base_parameters:
               "var.catalog": ${var.catalog}
               "var.schema": ${var.schema}
-              "var.app_name": "${bundle.target}-investment-intel"
+              "var.app_name": "${bundle.target}-hospital-control-tower"
               "var.warehouse_id": ${var.warehouse_id}
               "var.vector_search_endpoint": ${var.vector_search_endpoint}
               "var.llm_model_rag": ${var.llm_model_rag}
@@ -97,8 +97,8 @@ resources:
               ResourceClass: SingleNode
 
     setup_sop_vector_search:
-      name: "${bundle.target}-investment-intel-setup-sop-vector"
-      description: "Setup investment policy PDF parsing and vector search index"
+      name: "${bundle.target}-hospital-control-tower-setup-sop-vector"
+      description: "Setup SOP/policy PDF parsing and vector search index"
       tasks:
         - task_key: setup_sop_vector_search
           notebook_task:
@@ -119,8 +119,8 @@ resources:
               ResourceClass: SingleNode
 
     setup_data_model:
-      name: "${bundle.target}-investment-intel-setup-data-model"
-      description: "Setup investment portfolio data model tables"
+      name: "${bundle.target}-hospital-control-tower-setup-data-model"
+      description: "Setup hospital operations data model tables"
       tasks:
         - task_key: setup_data_model
           notebook_task:
@@ -140,8 +140,8 @@ resources:
               ResourceClass: SingleNode
 
     generate_data:
-      name: "${bundle.target}-investment-intel-generate-data"
-      description: "Generate realistic investment portfolio data for testing and demos"
+      name: "${bundle.target}-hospital-control-tower-generate-data"
+      description: "Generate realistic hospital operations data for testing and demos"
       tasks:
         - task_key: generate_data
           notebook_task:
@@ -163,8 +163,8 @@ resources:
               ResourceClass: SingleNode
 
     daily_data_refresh:
-      name: "${bundle.target}-investment-intel-daily-data"
-      description: "Daily append of fresh fund data to keep demo tables current"
+      name: "${bundle.target}-hospital-control-tower-daily-data"
+      description: "Daily append of fresh encounter data to keep demo tables current"
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
         timezone_id: "America/New_York"

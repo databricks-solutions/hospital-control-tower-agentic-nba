@@ -20,7 +20,7 @@ import sys
 
 # Configuration
 dbutils.widgets.text("var.catalog", "", "Catalog")
-dbutils.widgets.text("var.schema", "investment_intel", "Schema")
+dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
 dbutils.widgets.text("var.lakebase_host", "", "Lakebase Host")
 dbutils.widgets.text("var.lakebase_database", "postgres", "Lakebase Database")
 CATALOG = dbutils.widgets.get("var.catalog")

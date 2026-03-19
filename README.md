@@ -1,24 +1,24 @@
-# Investment Intelligence Platform
+# Hospital Control Tower
 
-AI-powered portfolio intelligence for investment operations on Databricks.
+AI-powered operations intelligence for hospital logistics on Databricks.
 
-> **Disclaimer**: This is a Databricks Solution Accelerator -- a starting point to accelerate your project. Investment Intelligence Platform is fully functioning end-to-end, but you should evaluate, test, and modify this code for your specific use case. Agent recommendations and analytics will vary depending on your data and configuration.
+> **Disclaimer**: This is a Databricks Solution Accelerator -- a starting point to accelerate your project. Hospital Control Tower is fully functioning end-to-end, but you should evaluate, test, and modify this code for your specific use case. Agent recommendations and analytics will vary depending on your data and configuration.
 
 ## What This Is
 
-A deployable Databricks App that gives portfolio managers a conversational AI companion. Ask questions about fund investments, performance, capital flows, and exposure -- the agent queries your data, searches Investment Policy Statements (IPS), and recommends actions grounded in your IPS.
+A deployable Databricks App that gives hospital operations teams a conversational AI companion. Ask questions about encounters, drug costs, ED wait times, and staffing -- the agent queries your data, searches Standard Operating Procedures, and recommends actions grounded in your SOPs.
 
 The app shows:
-- A **real-time dashboard** with composite portfolio score, fund trends, alerts, and operational metrics
+- A **real-time dashboard** with composite health score, encounter trends, alerts, and operational metrics
 - A **chat interface** with two modes: Quick Query (2-5s lookups) and Deep Analysis (30-90s multi-agent investigations)
-- **Autonomous monitoring** that detects portfolio issues and generates recommended action reports in the background
+- **Autonomous monitoring** that detects health issues and generates recommended action reports in the background
 
 **Example questions the agent can answer:**
-- Why did fund performance spike in November for Manager A?
-- What specific actions can I take to reduce concentration in Manager A?
-- Why is performance lower for funds rebalanced on Mondays?
-- How can I improve capital flow efficiency?
-- How can I reduce exposure concentration in the growth strategy?
+- Why did drug costs spike in November for Hospital A?
+- What specific actions can I take to reduce LOS in Hospital A?
+- Why is LOS higher for patients discharged on Mondays?
+- How can I reduce wait times in the Emergency Department?
+- How can I lower the use of contract labor in the cardiology department?
 
 ## Screenshots
 
@@ -48,14 +48,14 @@ The app shows:
    ```bash
    ./setup.sh dev
    ```
-   This syncs `app/app.yaml` from `variables.yml`, deploys the bundle, generates data, grants permissions, sets up vector search and IPS documents, and runs diagnostics.
+   This syncs `app/app.yaml` from `variables.yml`, deploys the bundle, generates data, grants permissions, sets up vector search and SOPs, and runs diagnostics.
 
    To redeploy without regenerating data:
    ```bash
    ./setup.sh dev --skip-data
    ```
 
-3. **Access**: Open your Databricks workspace > **Apps** > `dev-investment-intelligence-platform`.
+3. **Access**: Open your Databricks workspace > **Apps** > `dev-hospital-control-tower`.
 
 ### Option 2: Git Folder (No CLI)
 
@@ -128,9 +128,9 @@ Fast ReAct agent with intent classification. Classifies your question (data look
 graph LR
     User[User Message] --> Classify[Classify Intent]
     Classify -->|query| SQL[execute_sql]
-    Classify -->|search| VS[search_fund_documents]
-    Classify -->|analyze| Tools["execute_sql + search_fund_documents + search_ips + write_analysis"]
-    Classify -->|general| Default["execute_sql + search_fund_documents"]
+    Classify -->|search| VS[search_encounters]
+    Classify -->|analyze| Tools["execute_sql + search_encounters + search_sops + write_analysis"]
+    Classify -->|general| Default["execute_sql + search_encounters"]
     SQL --> ReAct[ReAct Agent]
     VS --> ReAct
     Tools --> ReAct
@@ -140,7 +140,7 @@ graph LR
 </details>
 
 ### Deep Analysis
-Multi-agent LangGraph graph with LLM supervisor. Streams progress via SSE. The supervisor routes between planning, retrieval, analysis, and clarification nodes. Responds in 30-90 seconds with structured reports, evidence citations, and IPS-grounded recommendations.
+Multi-agent LangGraph graph with LLM supervisor. Streams progress via SSE. The supervisor routes between planning, retrieval, analysis, and clarification nodes. Responds in 30-90 seconds with structured reports, evidence citations, and SOP-grounded recommendations.
 
 <details>
 <summary>Architecture diagram</summary>
@@ -152,7 +152,7 @@ graph TD
 
     Supervisor -->|CLARIFY| Clarify["Clarify Node\n(ask user)"]
     Supervisor -->|PLAN| Planner["Planner\n(LLM: create data plan)"]
-    Supervisor -->|RETRIEVE| Retrieval["Retrieval Agent\n(ReAct: SQL, Vector Search, IPS, KPIs)"]
+    Supervisor -->|RETRIEVE| Retrieval["Retrieval Agent\n(ReAct: SQL, Vector Search, SOPs, KPIs)"]
     Supervisor -->|ANALYZE| Analyst["Analyst Agent\n(ReAct: interpret + write_analysis)"]
     Supervisor -->|RESPOND| Respond["Respond Node\n(final output)"]
 
@@ -165,7 +165,7 @@ graph TD
 </details>
 
 ### Autonomous Mode
-Background agent (APScheduler) that monitors portfolio health and generates recommended action reports only when issues are detected. Configurable interval, auto-stops after 2 hours.
+Background agent (APScheduler) that monitors operational health and generates recommended action reports only when issues are detected. Configurable interval, auto-stops after 2 hours.
 
 <details>
 <summary>Architecture diagram</summary>
@@ -185,31 +185,31 @@ graph TD
 5 core tables + 1 derived view, all generated synthetically with built-in patterns for the agent to discover:
 
 ```
-dim_funds (fund investment metadata)
+dim_encounters (patient encounter metadata)
     |
-    +-- fact_performance (fund performance metrics per investment)
+    +-- fact_drug_costs (drug/pharmacy costs per encounter)
     |
-    +-- fact_holdings (portfolio holdings by type: equity, fixed_income, alternatives)
+    +-- fact_staffing (staffing levels by type: full_time, contract, per_diem)
     |
-    +-- fact_capital_flows (capital flow events by type)
+    +-- fact_ed_wait_times (ED wait time events by acuity)
     |
-    +-- fact_operational_kpis (daily KPIs per manager/strategy)
+    +-- fact_operational_kpis (daily KPIs per hospital/department)
 
-manager_overview (VIEW - derived from dim_funds)
+hospital_overview (VIEW - derived from dim_encounters)
 ```
 
-**Portfolio Score**: Composite 0-100 score from: 40% avg performance (target) + 30% watchlist rate (target <10%) + 30% flow breaches.
+**Health Score**: Composite 0-100 score from: 40% avg LOS (target <5d) + 30% readmission rate (target <10%) + 30% ED breaches.
 
 ## Notebooks
 
 | Notebook | Description |
 |----------|-------------|
-| `00_generate_data.py` | Generate synthetic portfolio data (funds, performance, holdings, flows, KPIs). Supports `overwrite` and `append` modes. |
+| `00_generate_data.py` | Generate synthetic hospital data (encounters, drug costs, staffing, ED waits, KPIs). Supports `overwrite` and `append` modes. |
 | `01_setup_lakebase.py` | Configure Lakebase instance and `analysis_outputs` table |
-| `02_setup_vector_search.py` | Create Vector Search endpoint and fund document similarity index |
+| `02_setup_vector_search.py` | Create Vector Search endpoint and encounter similarity index |
 | `03_grant_permissions.py` | Grant Unity Catalog permissions to the app service principal |
 | `04_diagnostic_check.py` | Validate all prerequisites (tables, indexes, endpoints, permissions) |
-| `05_setup_sop_vector_search.py` | Parse IPS documents and create IPS vector search index |
+| `05_setup_sop_vector_search.py` | Parse SOP documents and create SOP vector search index |
 | `06_simplify_data_model.py` | Setup and refresh the data model tables and views |
 | `07_generate_batches.py` | Generate incremental data batches for testing |
 | `08_setup_lakebase_migrations.py` | Run Alembic migrations for Lakebase schema |
@@ -245,7 +245,7 @@ medical_logistics_nba_app/
       orchestrator.py         #     Quick Query mode (ReAct with intent classification)
       graph.py                #     Deep Analysis mode (multi-agent LangGraph StateGraph)
       autonomous.py           #     Autonomous mode (APScheduler + smart health check)
-      tools.py                #     Shared agent tools (SQL, vector search, IPS, KPI)
+      tools.py                #     Shared agent tools (SQL, vector search, SOP, KPI)
     src/                      #   React frontend (Vite + Tailwind)
       App.jsx                 #     Main app component
       components/             #     UI components (Header, Chat, Dashboard, DemoGuide, Settings)
@@ -254,7 +254,7 @@ medical_logistics_nba_app/
   notebooks/                  # Databricks notebooks (see table above)
   resources/                  # DAB resource definitions (jobs.yml, apps.yml)
   data/                       # Sample data
-    sop_samples/              #   Sample IPS documents for vector search
+    sop_samples/              #   Sample SOP documents for vector search
   docs/                       # Documentation
 ```
 

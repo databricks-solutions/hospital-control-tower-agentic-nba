@@ -19,13 +19,13 @@ env:
     value: "YOUR_CATALOG"
     
   - name: SCHEMA
-    value: "investment_intel"
+    value: "med_logistics_nba"
 
   - name: LAKEBASE_HOST
     value: "YOUR_LAKEBASE_HOST"
     
   - name: LAKEBASE_DATABASE
-    value: "investment_intel_db"
+    value: "med_logistics_nba_db"
 
   - name: VECTOR_SEARCH_ENDPOINT
     value: "YOUR_VECTOR_ENDPOINT"

@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Diagnostic Check for Investment Portfolio Intelligence
+# MAGIC # Diagnostic Check for Hospital Control Tower
 # MAGIC Tests tables, permissions, tools, and LLM endpoints.
 
 # COMMAND ----------
@@ -15,7 +15,7 @@ dbutils.library.restartPython()
 
 # Configuration -- reads from bundle variables (var.*) when run via DAB jobs
 dbutils.widgets.text("var.catalog", "", "Catalog")
-dbutils.widgets.text("var.schema", "investment_intel", "Schema")
+dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
 dbutils.widgets.text("var.app_name", "dev-hospital-control-tower", "App Name")
 dbutils.widgets.text("var.warehouse_id", "", "Warehouse ID")
 dbutils.widgets.text("var.llm_model_rag", "databricks-claude-sonnet-4-5", "LLM Endpoint")
@@ -40,9 +40,9 @@ print(f"App: {APP_NAME}")
 spark.sql(f"USE CATALOG {CATALOG}")
 
 tables_to_check = [
-    f"{SCHEMA}.dim_funds",
+    f"{SCHEMA}.dim_encounters",
     f"{SCHEMA}.analysis_outputs", 
-    f"{SCHEMA}.fund_documents_for_embedding",
+    f"{SCHEMA}.encounters_for_embedding",
 ]
 
 print("Table Existence Check:")
@@ -64,13 +64,13 @@ for table in tables_to_check:
 print("\nPermissions Check (current user):")
 print("=" * 60)
 
-# Test SELECT on dim_funds
+# Test SELECT on dim_encounters
 try:
-    df = spark.sql(f"SELECT * FROM {SCHEMA}.dim_funds LIMIT 1")
+    df = spark.sql(f"SELECT * FROM {SCHEMA}.dim_encounters LIMIT 1")
     df.collect()
-    print(f"  SELECT on dim_funds: OK")
+    print(f"  SELECT on dim_encounters: OK")
 except Exception as e:
-    print(f"  SELECT on dim_funds: FAILED - {e}")
+    print(f"  SELECT on dim_encounters: FAILED - {e}")
 
 # Test SELECT on analysis_outputs
 try:
@@ -103,7 +103,7 @@ from databricks.vector_search.client import VectorSearchClient
 
 dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 ENDPOINT_NAME = dbutils.widgets.get("var.vector_search_endpoint")
-INDEX_NAME = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
+INDEX_NAME = f"{CATALOG}.{SCHEMA}.encounters_vector_index"
 
 print(f"\nVector Search Check:")
 print("=" * 60)
@@ -125,8 +125,8 @@ try:
     
     # Test search
     results = index.similarity_search(
-        query_text="fund performance and portfolio holdings",
-        columns=["fund_id", "text_content"],
+        query_text="encounters with readmissions",
+        columns=["encounter_id", "text_content"],
         num_results=1,
     )
     print(f"  Search test: OK (found {len(results.get('result', {}).get('data_array', []))} results)")
@@ -242,14 +242,14 @@ w = WorkspaceClient()
 try:
     result = w.statement_execution.execute_statement(
         warehouse_id=WAREHOUSE_ID,
-        statement=f"SELECT COUNT(*) as cnt FROM {CATALOG}.{SCHEMA}.dim_funds",
+        statement=f"SELECT COUNT(*) as cnt FROM {CATALOG}.{SCHEMA}.dim_encounters",
         wait_timeout="30s",
     )
     
     if result.status.state.value == "SUCCEEDED":
         count = result.result.data_array[0][0] if result.result.data_array else 0
         print(f"  Query execution: OK")
-        print(f"  Row count from dim_funds: {count}")
+        print(f"  Row count from dim_encounters: {count}")
     else:
         print(f"  Query execution: FAILED - {result.status.error}")
 except Exception as e:
@@ -289,7 +289,7 @@ print("DIAGNOSTIC SUMMARY")
 print("=" * 60)
 print("""
 Run this notebook to check:
-1. Table existence - Ensure dim_funds and analysis_outputs exist
+1. Table existence - Ensure dim_encounters and analysis_outputs exist
 2. Permissions - Verify current user can SELECT/INSERT
 3. Vector Search - Endpoint and index are ready
 4. LLM Endpoint - ChatDatabricks works

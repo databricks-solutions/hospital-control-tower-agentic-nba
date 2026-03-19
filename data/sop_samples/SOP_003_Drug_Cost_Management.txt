@@ -1,0 +1,133 @@
+MEMORIAL HEALTH SYSTEM -- STANDARD OPERATING PROCEDURE
+Document: SOP-003-DC
+Title: Drug Cost Management and Formulary Compliance
+Effective Date: 2024-02-01
+Review Date: 2025-02-01
+Department: Pharmacy / All Clinical Departments
+Approved By: Chief Pharmacy Officer, Chief Financial Officer
+
+1. PURPOSE
+
+This procedure establishes protocols for managing pharmaceutical costs, ensuring
+formulary compliance, investigating cost anomalies, and optimizing drug utilization
+across all Memorial Health System facilities.
+
+2. SCOPE
+
+Applies to all drug orders, dispensing, and procurement activities across Hospital A,
+Hospital B, and Hospital C. Covers inpatient, ED, and outpatient pharmacy operations.
+
+3. FORMULARY MANAGEMENT
+
+3.1 The Pharmacy and Therapeutics (P&T) Committee maintains the system formulary.
+3.2 P&T Committee reviews formulary quarterly. Criteria for inclusion:
+    - Clinical efficacy evidence
+    - Cost-effectiveness relative to therapeutic alternatives
+    - Safety profile
+    - Availability and supply chain reliability
+3.3 Non-formulary drug requests require attending physician justification and
+    pharmacy director approval. Target: < 5% of orders are non-formulary.
+3.4 Therapeutic interchange: Pharmacists may substitute formulary equivalents per
+    the approved interchange list without additional physician authorization.
+
+4. COST MONITORING AND THRESHOLDS
+
+4.1 Drug cost per encounter is tracked daily by hospital and department.
+4.2 Baseline: System-wide drug cost per encounter is established quarterly.
+4.3 Alert Thresholds:
+    a) Department drug cost > 20% above quarterly baseline: Yellow alert --
+       pharmacy director reviews within 5 business days.
+    b) Department drug cost > 40% above quarterly baseline: Red alert --
+       investigation initiated within 48 hours (see Section 5).
+    c) Single drug category cost increase > 30% month-over-month: Automatic
+       P&T Committee review.
+
+4.4 Monthly reporting includes:
+    - Total pharmacy spend by hospital, department, and drug category
+    - Cost per encounter trends (6-month rolling)
+    - Top 10 drugs by total spend
+    - Non-formulary utilization rate
+    - Therapeutic category breakdown
+
+5. COST SPIKE INVESTIGATION PROCEDURE
+
+5.1 Trigger: Any red alert (Section 4.3b) or unexplained cost increase > 25%
+    month-over-month.
+
+5.2 Investigation Steps:
+    Step 1: Pharmacy analyst pulls 30-day cost data for the affected
+            department and drug categories.
+    Step 2: Compare unit cost vs. quantity changes to determine whether the
+            spike is price-driven or volume-driven.
+    Step 3: If price-driven:
+            - Check for contract changes or GPO pricing updates
+            - Verify no procurement errors or duplicate orders
+            - Escalate to supply chain if vendor pricing changed
+    Step 4: If volume-driven:
+            - Correlate with patient volume changes (census, acuity mix)
+            - Check for new clinical protocols that increased utilization
+            - Identify specific physicians or departments driving volume
+    Step 5: Document findings and corrective actions in the cost management log.
+    Step 6: Present findings at next P&T Committee meeting.
+
+5.3 Timeline: Investigation must be completed within 10 business days of trigger.
+
+6. HIGH-COST DRUG MANAGEMENT
+
+6.1 Drugs costing > $500 per dose require attending physician order AND
+    pharmacist verification of clinical appropriateness.
+6.2 Specialty drugs (biologics, oncology agents) require prior authorization
+    through the specialty pharmacy program.
+6.3 Monthly high-cost drug utilization report provided to department medical
+    directors showing:
+    - Patient count and total cost per high-cost drug
+    - Comparison to expected utilization based on patient mix
+    - Waste tracking (unused doses, expired inventory)
+
+7. DEPARTMENT-SPECIFIC GUIDELINES
+
+7.1 Cardiology: Primary cost drivers are anticoagulants and antiarrhythmics.
+    Generic substitution rate target: > 85%. Monthly review of heparin and
+    DOAC utilization by pharmacy clinical specialist.
+
+7.2 Oncology: Drug costs managed through a separate oncology drug budget.
+    Biosimilar adoption target: > 60% for available biosimilar agents.
+    Regimen standardization tracked against NCCN guidelines.
+
+7.3 Emergency Department: Formulary compliance is critical for cost control.
+    ED-specific formulary subset maintained. Contract medication pricing
+    reviewed quarterly with ED medical director.
+
+7.4 Orthopedics: Surgical implant costs tracked separately. Antibiotic
+    prophylaxis standardized per SCIP guidelines to reduce variation.
+
+8. VENDOR AND SUPPLY CHAIN
+
+8.1 GPO (Group Purchasing Organization) contract compliance reviewed monthly.
+    Target: > 95% compliance with GPO contracts.
+8.2 340B program compliance monitored for eligible facilities.
+8.3 Drug shortage management: pharmacy maintains a 30-day buffer stock for
+    critical medications. Shortage notifications distributed within 24 hours.
+
+9. PERFORMANCE METRICS
+
+9.1 Dashboard Metrics (updated monthly):
+    - Drug cost per encounter by hospital and department
+    - Formulary compliance rate
+    - Non-formulary utilization rate
+    - Generic substitution rate
+    - Cost per DRG vs. benchmark
+    - Year-over-year cost trend
+
+9.2 Annual Goals:
+    - Drug cost per encounter growth: < inflation + 2%
+    - Formulary compliance: > 95%
+    - Generic substitution: > 80%
+    - Investigation close rate: 100% within 10 business days
+
+10. REFERENCES
+
+- ASHP Guidelines on Formulary Management
+- Joint Commission Standard MM.02.01.01 (Medication Management)
+- CMS Conditions of Participation, Pharmaceutical Services (42 CFR 482.25)
+- Institute for Safe Medication Practices (ISMP) Guidelines

@@ -1,11 +1,11 @@
-# Investment Intelligence Platform -- Demo Walkthrough
+# Hospital Control Tower -- Demo Walkthrough
 
-A 15-minute guided demo for presenting Investment Intelligence Platform to customers. Each section includes what to click, what to say, what to expect, and recovery steps.
+A 15-minute guided demo for presenting Hospital Control Tower to customers. Each section includes what to click, what to say, what to expect, and recovery steps.
 
 ## Before the Demo
 
 - Confirm the app is running at its Databricks Apps URL
-- Verify the portfolio score is visible (not `--/100`). If missing, run `databricks bundle run generate_data -t dev` and wait 2 minutes
+- Verify the health score is visible (not `--/100`). If missing, run `databricks bundle run generate_data -t dev` and wait 2 minutes
 - Clear chat history if there are leftover messages from previous demos (click "Clear chat" at the bottom)
 - Set mode to **Deep Analysis** (default)
 - Confirm Autonomous mode is **stopped**
@@ -18,20 +18,20 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 
 ### Talking Points
 
-> "Portfolio managers today manage dozens of disconnected dashboards -- one for capital flows, one for exposure, one for performance, one for compliance metrics. Most are reactive: you discover a problem after it has already impacted returns or driven up risk."
+> "Hospital operations teams today manage dozens of disconnected dashboards -- one for ED throughput, one for staffing, one for costs, one for quality metrics. Most are reactive: you discover a problem after it has already impacted patient care or driven up costs."
 >
-> "What if your portfolio platform could proactively monitor everything, identify root causes, and recommend specific actions grounded in your own Investment Policy Statements -- all through a conversational interface?"
+> "What if your operations platform could proactively monitor everything, identify root causes, and recommend specific actions grounded in your own SOPs -- all through a conversational interface?"
 
 ### Actions
 
-1. **Point to the portfolio score** in the header (e.g., "72/100 -- Attention needed")
-   - "This composite score summarizes performance, watchlist rates, and flow breaches in one number."
-   - Hover to show the tooltip breakdown (40% performance + 30% watchlist + 30% flows)
+1. **Point to the health score** in the header (e.g., "72/100 -- Attention needed")
+   - "This composite score summarizes LOS, readmission rates, and ED breaches in one number."
+   - Hover to show the tooltip breakdown (40% LOS + 30% readmit + 30% ED)
 
 2. **Point to the dashboard panel** on the right
-   - Walk through the stat cards: Investments, Avg Performance, Watchlist Rate
+   - Walk through the stat cards: Encounters, Avg LOS, Readmission Rate
    - Point out trend arrows (week-over-week)
-   - Briefly note the 30-Day Investment Volume chart, Capital Flow tiles, Fund Performance, and Holdings Mix
+   - Briefly note the 30-Day Encounter Volume chart, ED Wait tiles, Drug Cost, and Staffing Mix
 
 3. **Point to Active Alerts** if any are showing
    - "These are automatically generated from the latest data -- not manually configured thresholds."
@@ -45,7 +45,7 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 ### Quick Query (2 min)
 
 1. Switch to **Quick Query** mode (click the toggle)
-2. Type: **"What's the average performance at Manager A?"**
+2. Type: **"What's the average LOS at Hospital A?"**
 3. Press Enter
 
 **What to expect:** Response in 2-5 seconds with a specific number and context.
@@ -55,12 +55,12 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 
 **If it takes longer than 10s:** Say "The first query warms up the connection. Subsequent queries are faster." and wait.
 
-4. Optionally ask a follow-up: **"Compare that to Manager B"**
+4. Optionally ask a follow-up: **"Compare that to Hospital B"**
 
 ### Deep Analysis (4 min)
 
 1. Switch to **Deep Analysis** mode
-2. Click the suggestion chip: **"Why did fund performance spike in November?"**
+2. Click the suggestion chip: **"Why did drug costs spike in November?"**
 
 **What to expect:** Stage indicators update as the analysis progresses:
 - "Starting..." (1-3s)
@@ -72,14 +72,14 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 **While waiting, explain the architecture:**
 > "Deep Analysis uses a multi-agent graph. An LLM supervisor decides what to do next -- it might ask for clarification, plan what data to gather, dispatch a retrieval agent to query SQL and vector search, then hand off to an analyst agent that interprets the evidence and writes a structured report."
 >
-> "Notice the tool calls at the bottom of the response -- you can see exactly which data sources were queried, including IPS document lookups."
+> "Notice the tool calls at the bottom of the response -- you can see exactly which data sources were queried, including SOP document lookups."
 
 3. **Point out the response structure:**
    - Evidence citations
    - Impact assessment
-   - IPS-grounded recommendations
+   - SOP-grounded recommendations
 
-**If it errors or times out:** Say "Let me try a simpler deep analysis" and ask: "Analyze the holdings mix in the growth strategy."
+**If it errors or times out:** Say "Let me try a simpler deep analysis" and ask: "Analyze the staffing mix in the Cardiology department."
 
 ---
 
@@ -90,11 +90,11 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 ### Data Injection (2 min)
 
 1. Click **Inject Anomaly** (in the Demo Tools section)
-   - Watch for the green toast confirming the injected investments
-   - Wait 2-3 seconds for the portfolio score to update (it should drop)
+   - Watch for the green toast confirming the injected encounters
+   - Wait 2-3 seconds for the health score to update (it should drop)
 
 **Say:**
-> "For demos, we can inject test data. These investments have underperformance and are all on the watchlist. The batch size is configurable in Settings. Watch the portfolio score respond."
+> "For demos, we can inject test data. These encounters have long LOS and are all readmissions. The batch size is configurable in Settings. Watch the health score respond."
 
 2. **Click an alert tile** if one appears
    - This pre-fills a deep analysis query in the chat
@@ -114,7 +114,7 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 5. Wait for a recommended action to appear in the dashboard (or point to one if already there)
 
 **Say:**
-> "Every recommendation is IPS-grounded -- the agent searches your Investment Policy Statements before making suggestions, so you get actionable advice, not hallucinated generic tips."
+> "Every recommendation is SOP-grounded -- the agent searches your standard operating procedures before making suggestions, so you get actionable advice, not hallucinated generic tips."
 
 6. Stop Autonomous mode (click **Stop**) to keep the demo clean.
 
@@ -126,7 +126,7 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 
 > "Everything runs on Databricks:"
 > - **Unity Catalog** for data governance and table management
-> - **Vector Search** for fund document similarity and IPS retrieval
+> - **Vector Search** for encounter similarity and SOP document retrieval
 > - **Foundation Models** (Claude Sonnet for reasoning, GTE for embeddings) -- no external API keys
 > - **MLflow** for agent tracing and observability
 > - **Databricks Apps** for deployment -- this is a standard Flask + React app
@@ -135,7 +135,7 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 
 ### Closing
 
-> "This is a solution accelerator -- a working starting point. The data model, agent prompts, and IPS documents are all customizable. A customer could adapt this to their specific managers, strategies, and investment policies in weeks, not months."
+> "This is a solution accelerator -- a working starting point. The data model, agent prompts, and SOP documents are all customizable. A customer could adapt this to their specific hospitals, departments, and operating procedures in weeks, not months."
 
 ---
 
@@ -143,7 +143,7 @@ A 15-minute guided demo for presenting Investment Intelligence Platform to custo
 
 | Symptom | Fix |
 |---------|-----|
-| Portfolio score shows `--/100` | Data tables may be empty. Click **Inject Good** a few times, then refresh the page. |
+| Health score shows `--/100` | Data tables may be empty. Click **Inject Good** a few times, then refresh the page. |
 | Deep Analysis returns an error | Try a simpler question in Quick Query mode to verify connectivity, then retry. |
 | Deep Analysis hangs with no stage updates | Wait up to 90 seconds. If still stuck, refresh and retry. The 5-minute timeout will surface an error. |
 | Dashboard tiles show "No data" | Run `databricks bundle run generate_data -t dev` or click **Inject Good** to add test data. |

@@ -18,23 +18,23 @@ def get_workspace_client() -> WorkspaceClient:
 
 
 CATALOG = os.environ.get("CATALOG", "")
-SCHEMA = os.environ.get("SCHEMA", "investment_intel")
+SCHEMA = os.environ.get("SCHEMA", "med_logistics_nba")
 WAREHOUSE_ID = os.environ.get("DATABRICKS_WAREHOUSE_ID", "")
 VECTOR_ENDPOINT = os.environ.get("VECTOR_SEARCH_ENDPOINT", "")
-VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
+VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.encounters_vector_index"
 ANALYSIS_TABLE = f"{CATALOG}.{SCHEMA}.analysis_outputs"
 
 
 @tool
 def execute_sql(query: str) -> str:
-    """Execute read-only SQL query against investment portfolio data.
+    """Execute read-only SQL query against medical logistics data.
 
     Available tables:
-    - dim_funds: Fund holdings (fund_id, fund_name, sector, holding_period, rebalance_day_of_week, is_rebalance)
-    - fact_fund_performance: Fund performance (fund_id, holding_name, holding_category, unit_return, total_return)
-    - fact_portfolio_holdings: Portfolio holdings (date, fund_name, sector, position_type, holding_count, cost_per_holding)
-    - fact_fund_flows: Fund flows (fund_id, flow_amount, risk_level)
-    - fact_portfolio_kpis: Daily KPIs (avg_holding_period, avg_flow_amount, exposure_pct, rebalance_rate)
+    - dim_encounters: Patient encounters (encounter_id, hospital, department, los_days, discharge_day_of_week, is_readmission)
+    - fact_drug_costs: Drug costs (encounter_id, drug_name, drug_category, unit_cost, total_cost)
+    - fact_staffing: Staffing (date, hospital, department, staff_type, fte_count, cost_per_fte)
+    - fact_ed_wait_times: ED waits (encounter_id, wait_minutes, acuity_level)
+    - fact_operational_kpis: Daily KPIs (avg_los, avg_ed_wait_minutes, contract_labor_pct, readmission_rate)
     """
     query_upper = query.strip().upper()
     if not query_upper.startswith("SELECT"):
@@ -61,8 +61,8 @@ def execute_sql(query: str) -> str:
 
 
 @tool
-def search_fund_documents(query: str, num_results: int = 5) -> str:
-    """Search fund documents using semantic similarity."""
+def search_encounters(query: str, num_results: int = 5) -> str:
+    """Search patient encounters using semantic similarity."""
     num_results = min(max(num_results, 1), 20)
     try:
         from databricks.vector_search.client import VectorSearchClient
@@ -70,7 +70,7 @@ def search_fund_documents(query: str, num_results: int = 5) -> str:
         index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX)
         results = index.similarity_search(
             query_text=query,
-            columns=["fund_id", "text_content", "fund_name", "sector", "holding_period", "is_rebalance"],
+            columns=["encounter_id", "text_content", "hospital", "department", "los_days", "is_readmission"],
             num_results=num_results,
         )
         matches = []
@@ -78,12 +78,12 @@ def search_fund_documents(query: str, num_results: int = 5) -> str:
             if len(row) >= 2:
                 matches.append({
                     "score": row[0] if isinstance(row[0], (int, float)) else None,
-                    "fund_id": row[1] if len(row) > 1 else None,
+                    "encounter_id": row[1] if len(row) > 1 else None,
                     "text_content": row[2] if len(row) > 2 else None,
-                    "fund_name": row[3] if len(row) > 3 else None,
-                    "sector": row[4] if len(row) > 4 else None,
-                    "holding_period": row[5] if len(row) > 5 else None,
-                    "is_rebalance": row[6] if len(row) > 6 else None,
+                    "hospital": row[3] if len(row) > 3 else None,
+                    "department": row[4] if len(row) > 4 else None,
+                    "los_days": row[5] if len(row) > 5 else None,
+                    "is_readmission": row[6] if len(row) > 6 else None,
                 })
         return json.dumps({"matches": matches, "query": query})
     except Exception as e:
@@ -92,7 +92,7 @@ def search_fund_documents(query: str, num_results: int = 5) -> str:
 
 @tool
 def write_analysis(analysis_type: str, insights: str, recommendations: Optional[str] = None,
-                   fund_id: Optional[str] = None, agent_mode: str = "rag") -> str:
+                   encounter_id: Optional[str] = None, agent_mode: str = "rag") -> str:
     """Write analysis results to the analysis_outputs table."""
     try:
         record_id = str(uuid.uuid4())
@@ -101,14 +101,14 @@ def write_analysis(analysis_type: str, insights: str, recommendations: Optional[
             return s.replace("'", "''") if s else None
         insights_escaped = escape(insights)
         reco_escaped = escape(recommendations) if recommendations else None
-        fund_escaped = escape(fund_id) if fund_id else None
+        enc_escaped = escape(encounter_id) if encounter_id else None
         reco_value = f"'{reco_escaped}'" if reco_escaped else "NULL"
-        fund_value = f"'{fund_escaped}'" if fund_escaped else "NULL"
+        enc_value = f"'{enc_escaped}'" if enc_escaped else "NULL"
 
         insert_sql = f"""
         INSERT INTO {ANALYSIS_TABLE}
-        (id, fund_id, analysis_type, insights, recommendations, created_at, agent_mode, metadata)
-        VALUES ('{record_id}', {fund_value}, '{escape(analysis_type)}', '{insights_escaped}',
+        (id, encounter_id, analysis_type, insights, recommendations, created_at, agent_mode, metadata)
+        VALUES ('{record_id}', {enc_value}, '{escape(analysis_type)}', '{insights_escaped}',
                 {reco_value}, '{created_at}', '{escape(agent_mode)}', NULL)
         """
         w = get_workspace_client()
@@ -123,6 +123,6 @@ def write_analysis(analysis_type: str, insights: str, recommendations: Optional[
         return json.dumps({"error": str(e)})
 
 
-ORCHESTRATOR_TOOLS = [execute_sql, search_fund_documents]
-RAG_TOOLS = [execute_sql, search_fund_documents, write_analysis]
-ALL_TOOLS = {"execute_sql": execute_sql, "search_fund_documents": search_fund_documents, "write_analysis": write_analysis}
+ORCHESTRATOR_TOOLS = [execute_sql, search_encounters]
+RAG_TOOLS = [execute_sql, search_encounters, write_analysis]
+ALL_TOOLS = {"execute_sql": execute_sql, "search_encounters": search_encounters, "write_analysis": write_analysis}

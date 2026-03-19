@@ -3,7 +3,7 @@ set -e
 
 TARGET="${1:-dev}"
 PROFILE="${2:-}"
-APP_NAME="${TARGET}-investment-intel"
+APP_NAME="${TARGET}-hospital-control-tower"
 PROFILE_ARG=""
 [[ -n "$PROFILE" ]] && PROFILE_ARG="-p $PROFILE"
 
@@ -16,7 +16,7 @@ if [[ -z "$BUNDLE_ROOT" ]]; then
 fi
 APP_SOURCE_PATH="${BUNDLE_ROOT}/files/app"
 
-echo "=== Deploying Investment Intel (target: $TARGET) ==="
+echo "=== Deploying Hospital Control Tower (target: $TARGET) ==="
 echo ""
 
 # Step 1: Deploy bundle
@@ -31,13 +31,13 @@ databricks bundle run setup_lakebase -t "$TARGET" $PROFILE_ARG \
     || { echo "FAILED: setup_lakebase"; exit 1; }
 echo "  Tables created successfully"
 
-# Step 3: Setup vector search (creates endpoint + fund_documents index)
+# Step 3: Setup vector search (creates endpoint + encounters index)
 echo ""
 echo "[3/7] Setting up vector search..."
 databricks bundle run setup_vector_search -t "$TARGET" $PROFILE_ARG || { echo "FAILED: setup_vector_search"; exit 1; }
 echo "  Vector search setup complete"
 
-# Step 4: Setup SOP vector search (creates investment_policy index on same endpoint)
+# Step 4: Setup SOP vector search (creates sop_vector_index on same endpoint)
 echo ""
 echo "[4/7] Setting up SOP vector search..."
 databricks bundle run setup_sop_vector_search -t "$TARGET" $PROFILE_ARG || { echo "WARNING: SOP vector search setup had issues (SOPs may not be loaded yet)"; }

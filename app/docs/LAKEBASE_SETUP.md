@@ -1,9 +1,9 @@
-# Lakebase Setup for Investment Intelligence Platform
+# Lakebase Setup for Hospital Control Tower
 
 ## Overview
 
-The Investment Intelligence Platform app uses a hybrid data architecture:
-- **Unity Catalog**: Analytical tables (funds, performance, holdings, KPIs) for read-heavy operations
+The Hospital Control Tower app uses a hybrid data architecture:
+- **Unity Catalog**: Analytical tables (encounters, costs, staffing, KPIs) for read-heavy operations
 - **Lakebase**: Application tables (analysis_outputs) for transactional writes
 
 This separation provides:
@@ -15,7 +15,7 @@ This separation provides:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                Investment Intelligence Platform              │
+│                      Hospital Control Tower                            │
 └──────────────┬──────────────────────────┬───────────────────┘
                │                          │
                │ Write                    │ Read
@@ -24,10 +24,10 @@ This separation provides:
     │   Lakebase PG    │      │   Unity Catalog         │
     │  (Transactional) │      │   (Analytical)          │
     ├──────────────────┤      ├─────────────────────────┤
-    │ analysis_outputs │      │ dim_funds               │
-    │   status         │      │ fact_performance        │
-    │   priority       │      │ fact_holdings           │
-    │   reviewed_by    │      │ fact_capital_flows      │
+    │ analysis_outputs │      │ dim_encounters          │
+    │   status         │      │ fact_drug_costs         │
+    │   priority       │      │ fact_staffing           │
+    │   reviewed_by    │      │ fact_ed_wait_times      │
     │   reviewed_at    │      │ fact_operational_kpis   │
     └──────────────────┘      └─────────────────────────┘
           │ Fallback                     ▲
@@ -81,7 +81,7 @@ variables:
     
   schema:
     description: Schema name
-    default: investment_intel
+    default: med_logistics_nba
     
   lakebase_host:
     description: Lakebase hostname

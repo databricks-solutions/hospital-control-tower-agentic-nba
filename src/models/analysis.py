@@ -12,7 +12,7 @@ class AnalysisOutput(Base):
     __tablename__ = "analysis_outputs"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    fund_id = Column(String(50), nullable=True, index=True)
+    encounter_id = Column(String(50), nullable=True, index=True)
     analysis_type = Column(String(100), nullable=False, index=True)
     insights = Column(Text, nullable=False)
     recommendations = Column(Text, nullable=True)
@@ -30,7 +30,7 @@ class AnalysisOutput(Base):
     def to_dict(self):
         return {
             "id": self.id,
-            "fund_id": self.fund_id,
+            "encounter_id": self.encounter_id,
             "analysis_type": self.analysis_type,
             "insights": self.insights,
             "recommendations": self.recommendations,

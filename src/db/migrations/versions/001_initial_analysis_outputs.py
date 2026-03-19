@@ -18,7 +18,7 @@ def upgrade() -> None:
     op.create_table(
         'analysis_outputs',
         sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('fund_id', sa.String(50), nullable=True, index=True),
+        sa.Column('encounter_id', sa.String(50), nullable=True, index=True),
         sa.Column('analysis_type', sa.String(100), nullable=False, index=True),
         sa.Column('insights', sa.Text(), nullable=False),
         sa.Column('recommendations', sa.Text(), nullable=True),

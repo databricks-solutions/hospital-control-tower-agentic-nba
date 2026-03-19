@@ -1,0 +1,115 @@
+MEMORIAL HEALTH SYSTEM -- STANDARD OPERATING PROCEDURE
+Document: SOP-002-ED
+Title: Emergency Department Throughput and Wait Time Management
+Effective Date: 2024-03-01
+Review Date: 2025-03-01
+Department: Emergency Medicine
+Approved By: ED Medical Director, Chief Nursing Officer
+
+1. PURPOSE
+
+This procedure establishes protocols for managing Emergency Department throughput,
+wait time thresholds, and escalation procedures to ensure timely patient care and
+reduce left-without-being-seen (LWBS) rates.
+
+2. SCOPE
+
+Applies to all ED encounters at Memorial Health System hospitals. Covers patient
+arrival through disposition (admission, discharge, or transfer).
+
+3. TRIAGE AND WAIT TIME THRESHOLDS
+
+3.1 Triage must be completed within 5 minutes of patient arrival.
+3.2 Provider-seen-time thresholds by acuity:
+
+    Acuity Level 1 (Resuscitation): Immediate -- 0 minutes
+    Acuity Level 2 (Emergent): 15 minutes maximum
+    Acuity Level 3 (Urgent): 30 minutes maximum
+    Acuity Level 4 (Less Urgent): 60 minutes maximum
+    Acuity Level 5 (Non-Urgent): 120 minutes maximum
+
+3.3 Any wait exceeding the threshold is classified as a "threshold breach" and
+    triggers the escalation procedure in Section 5.
+
+4. PATIENT FLOW PROTOCOLS
+
+4.1 Vertical Patient Flow:
+    a) Low-acuity patients (4-5) are routed to the fast-track area when available.
+    b) Fast-track staffing: minimum 1 provider + 1 nurse during peak hours
+       (10 AM - 10 PM).
+    c) Target fast-track door-to-disposition: 90 minutes.
+
+4.2 Bed Management:
+    a) ED charge nurse monitors bed board every 30 minutes.
+    b) When ED census exceeds 80% of licensed beds, the charge nurse activates
+       the surge protocol (Section 6).
+    c) Admitted patients in ED beds > 2 hours awaiting inpatient bed triggers
+       "boarding alert" to house supervisor.
+
+4.3 Diagnostic Turnaround:
+    a) Lab results target: 60 minutes from order to result.
+    b) Imaging turnaround target: 45 minutes for X-ray, 90 minutes for CT.
+    c) Delays beyond targets require notification to ED attending.
+
+5. ESCALATION PROCEDURE
+
+5.1 Level 1 -- Wait Time Breach (any single patient):
+    - Charge nurse notified immediately
+    - Document reason for delay in EHR
+    - Reassign provider resources if possible
+
+5.2 Level 2 -- Multiple Breaches (> 3 patients breaching in 1 hour):
+    - ED Medical Director notified
+    - Consider opening additional treatment spaces
+    - Pull on-call provider if available
+
+5.3 Level 3 -- Sustained Capacity Crisis (> 20% breach rate over 4 hours):
+    - Hospital Administrator on Call notified
+    - Activate surge protocol (Section 6)
+    - Consider ambulance diversion (requires CMO approval)
+
+6. SURGE PROTOCOL
+
+6.1 Trigger: ED census > 80% OR average wait time > 60 minutes for 2+ hours.
+6.2 Actions:
+    a) Open hallway treatment spaces per pre-approved layout
+    b) Activate additional nursing staff (per staffing SOP)
+    c) Expedite inpatient discharges -- notify all departments of surge status
+    d) Deploy house supervisor to ED for real-time bed management
+    e) Activate rapid admission protocol (bypass standard admission order sets
+       for stable patients)
+
+6.3 De-escalation: Surge protocol ends when ED census drops below 60% AND
+    average wait time < 30 minutes for 1 hour.
+
+7. PERFORMANCE METRICS
+
+7.1 Monthly Dashboard Metrics:
+    - Door-to-provider time by acuity (median and 90th percentile)
+    - Total threshold breaches by acuity
+    - LWBS rate (target: < 2%)
+    - ED boarding hours (target: < 4 hours average)
+    - Surge protocol activations
+
+7.2 Quarterly Review:
+    - Trend analysis of wait times and breach rates
+    - Staffing adequacy assessment
+    - Patient satisfaction scores (Press Ganey ED section)
+
+8. STAFFING GUIDELINES
+
+8.1 Minimum staffing ratios:
+    - 1 provider per 10 ED beds during standard operations
+    - 1 nurse per 4 patients for acuity 1-3
+    - 1 nurse per 6 patients for acuity 4-5
+8.2 Contract labor may supplement during surge but should not exceed 25% of
+    total ED nursing hours (see Staffing SOP-003).
+8.3 Night shift (10 PM - 6 AM) staffing reduced to 70% of day shift unless
+    historical volume warrants full staffing.
+
+9. REFERENCES
+
+- Emergency Nurses Association: Triage Qualifications and Competency
+- ACEP Policy: Boarding of Admitted and Boarded Patients in the ED
+- CMS Emergency Medical Treatment and Labor Act (EMTALA)
+- Joint Commission Standard LD.04.03.11 (Patient Flow)

@@ -1,26 +1,24 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Generate Investment Intelligence Data
+# MAGIC # Generate Medical Logistics Data
 # MAGIC
-# MAGIC Creates realistic fund/portfolio data using **dbldatagen** and **faker** for the
-# MAGIC Investment Intelligence Platform app.
+# MAGIC Creates realistic hospital operations data using **dbldatagen** and **faker** for the
+# MAGIC Medical Logistics Next Best Action app.
 # MAGIC
 # MAGIC **Tables generated:**
-# MAGIC 1. `dim_funds` - Fund/manager dimension
-# MAGIC 2. `fact_fund_performance` - Monthly returns and NAV
-# MAGIC 3. `fact_portfolio_holdings` - Position-level holdings
-# MAGIC 4. `fact_fund_flows` - Capital calls and distributions
-# MAGIC 5. `fact_portfolio_kpis` - Portfolio-level KPIs
-# MAGIC 6. `portfolio_overview` - Summary VIEW
+# MAGIC 1. `dim_encounters` - Patient encounter metadata
+# MAGIC 2. `fact_drug_costs` - Drug/pharmacy costs
+# MAGIC 3. `fact_staffing` - Staffing and contract labor
+# MAGIC 4. `fact_ed_wait_times` - ED wait time events
+# MAGIC 5. `fact_operational_kpis` - Daily operational KPIs
+# MAGIC 6. `hospital_overview` - Summary VIEW
 # MAGIC
 # MAGIC **Built-in patterns for the agent to discover:**
-# MAGIC - MedVenture Alpha (VC): declining returns, watchlisted
-# MAGIC - Asclepius Capital (PE Buyout): consistent top-performer
-# MAGIC - BioGrowth Partners (Growth Equity): dangerous position concentration
-# MAGIC - Genomics Partners / NovaBio (VC): J-curve returns
-# MAGIC - PulsePoint Capital (Hedge Fund): style drift, volatility spike
-# MAGIC - Q4 capital call spike across portfolio
-# MAGIC - Growth Equity: top-5 concentration approaching IPS 30% limit
+# MAGIC - Drug costs spike in November for Hospital A (expensive biologic added)
+# MAGIC - Hospital A has higher LOS than others
+# MAGIC - Monday discharges have higher LOS (weekend admission backlog)
+# MAGIC - ED wait times breach thresholds for low-acuity patients
+# MAGIC - Cardiology department has high contract labor percentage
 
 # COMMAND ----------
 
@@ -41,19 +39,19 @@ Faker.seed(42)
 random.seed(42)
 
 dbutils.widgets.text("var.catalog", "", "Catalog")
-dbutils.widgets.text("var.schema", "investment_intel", "Schema")
+dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 
-dbutils.widgets.text("fund_count", "35", "Number of Funds")
-dbutils.widgets.text("months_back", "36", "Months of History")
+dbutils.widgets.text("encounter_count", "10000", "Number of Encounters")
+dbutils.widgets.text("months_back", "12", "Months of History")
 dbutils.widgets.dropdown("write_mode", "overwrite", ["overwrite", "append"], "Write Mode")
 
-FUND_COUNT = int(dbutils.widgets.get("fund_count"))
+ENCOUNTER_COUNT = int(dbutils.widgets.get("encounter_count"))
 MONTHS_BACK = int(dbutils.widgets.get("months_back"))
 WRITE_MODE = dbutils.widgets.get("write_mode")
 
-print(f"Generating {FUND_COUNT} funds over {MONTHS_BACK} months ({WRITE_MODE} mode)")
+print(f"Generating {ENCOUNTER_COUNT} encounters over {MONTHS_BACK} months ({WRITE_MODE} mode)")
 print(f"Target: {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
@@ -69,368 +67,290 @@ spark.sql(f"USE SCHEMA {SCHEMA}")
 
 # COMMAND ----------
 
-# IPS-aligned strategies (Section 3.1)
-STRATEGIES = ["PE Buyout", "Venture Capital", "Growth Equity", "Hedge Fund L/S", "Credit & Royalties", "Real Assets"]
-# Weights for random assignment — matches IPS target allocation roughly
-STRATEGY_WEIGHTS = [28, 18, 12, 15, 12, 8]
+HOSPITALS = ["Hospital_A", "Hospital_B", "Hospital_C"]
+DEPARTMENTS = [
+    "Cardiology", "Orthopedics", "General_Medicine", "Neurology",
+    "Oncology", "Emergency", "Pediatrics", "Pulmonology"
+]
+PAYERS = ["Medicare", "Medicaid", "BlueCross", "Aetna", "UnitedHealth", "Self_Pay"]
+STAFF_TYPES = ["full_time", "contract", "per_diem"]
+ACUITY_LEVELS = [1, 2, 3, 4, 5]  # 1=most urgent, 5=least
 
-STATUSES = ["active", "prospect", "watchlist"]
-DOMICILES = ["Delaware", "Cayman Islands", "Luxembourg", "Ireland", "United Kingdom"]
-
-# Healthcare sub-sectors (IPS Section 3.5)
-SECTORS = ["Biopharma", "Medical Devices", "Healthcare Services", "Digital Health", "Healthcare RE & Labs", "Diagnostics & Tools"]
-SECTOR_WEIGHTS = [30, 20, 18, 15, 10, 7]
-
-# Geography per IPS Section 3.4 (NA 60%, Europe 20%, APAC 12%, RoW 5%)
-GEOGRAPHIES = ["North America", "Europe", "Asia-Pacific", "Emerging Markets"]
-GEO_WEIGHTS = [60, 20, 12, 8]
-
-LIQUIDITY_TERMS = ["Monthly", "Quarterly", "Annual", "Semi-Annual", "Locked"]
-
-# Named GPs -- each has a story arc the agent can discover
-MANAGER_PROFILES = {
-    "MedVenture Alpha":       {"strategy": "Venture Capital",     "aum_range": (180, 280), "story": "declining_returns"},
-    "Asclepius Capital":      {"strategy": "PE Buyout",           "aum_range": (250, 400), "story": "top_performer"},
-    "BioGrowth Partners":     {"strategy": "Growth Equity",       "aum_range": (120, 220), "story": "concentration_risk"},
-    "HealthBridge Investments":{"strategy": "Credit & Royalties", "aum_range": (100, 180), "story": "steady"},
-    "Pharma Equity Group":    {"strategy": "Hedge Fund L/S",      "aum_range": (150, 300), "story": "volatile"},
-    "LifeScience Capital":    {"strategy": "PE Buyout",           "aum_range": (200, 350), "story": "steady"},
-    "WellSpring Advisors":    {"strategy": "Real Assets",         "aum_range": (80, 160),  "story": "steady"},
-    "MedTech Growth Fund":    {"strategy": "Growth Equity",       "aum_range": (100, 200), "story": "recent_surge"},
-    "CarePoint Capital":      {"strategy": "Credit & Royalties",  "aum_range": (60, 140),  "story": "steady"},
-    "Genomics Partners":      {"strategy": "Venture Capital",     "aum_range": (60, 150),  "story": "j_curve"},
-    "HealthFirst Capital":    {"strategy": "PE Buyout",           "aum_range": (150, 300), "story": "steady"},
-    "NovaBio Investments":    {"strategy": "Venture Capital",     "aum_range": (40, 120),  "story": "j_curve"},
-    "PulsePoint Capital":     {"strategy": "Hedge Fund L/S",      "aum_range": (100, 200), "story": "style_drift"},
-    "MedAlliance Partners":   {"strategy": "PE Buyout",           "aum_range": (200, 380), "story": "nearing_exit"},
-    "VitalSign Advisors":     {"strategy": "Growth Equity",       "aum_range": (80, 180),  "story": "steady"},
-    "CurePoint Capital":      {"strategy": "Credit & Royalties",  "aum_range": (70, 150),  "story": "steady"},
-    "BioFrontier Partners":   {"strategy": "Venture Capital",     "aum_range": (30, 100),  "story": "early_stage"},
-    "HealthAxis Capital":     {"strategy": "Hedge Fund L/S",      "aum_range": (80, 160),  "story": "steady"},
-    "MedLedger Advisors":     {"strategy": "Real Assets",         "aum_range": (60, 130),  "story": "steady"},
-    "SynapsePoint Capital":   {"strategy": "Growth Equity",       "aum_range": (50, 140),  "story": "prospect_new"},
+DRUG_CATEGORIES = {
+    "Antibiotics": ["Amoxicillin", "Vancomycin", "Ceftriaxone", "Azithromycin"],
+    "Analgesics": ["Acetaminophen", "Morphine", "Hydrocodone", "Ketorolac"],
+    "Cardiovascular": ["Metoprolol", "Lisinopril", "Heparin", "Warfarin"],
+    "Biologics": ["Infliximab", "Rituximab", "Adalimumab"],
+    "Oncology": ["Pembrolizumab", "Nivolumab", "Carboplatin"],
 }
 
-COMPANY_NAMES = [
-    "Moderna Inc", "Illumina Corp", "Intuitive Surgical", "Edwards Lifesciences", "Danaher Corp",
-    "Thermo Fisher Scientific", "Abbott Laboratories", "Medtronic PLC", "UnitedHealth Group",
-    "Humana Inc", "Centene Corp", "Molina Healthcare", "HCA Healthcare", "Tenet Healthcare",
-    "Vertex Pharmaceuticals", "Regeneron Pharma", "BioMarin Pharma", "Alnylam Pharma",
-    "Exact Sciences", "Guardant Health", "Pacific Biosciences", "10x Genomics",
-    "Veeva Systems", "Doximity Inc", "Phreesia Inc", "Health Catalyst", "Schrodinger Inc",
-    "Recursion Pharma", "AbCellera Biologics", "Certara Inc", "Quanterix Corp",
-    "Butterfly Network", "Nuvation Bio", "Sana Biotechnology", "Ginkgo Bioworks",
-]
+# Base costs per category
+DRUG_BASE_COSTS = {
+    "Antibiotics": (5, 80),
+    "Analgesics": (2, 50),
+    "Cardiovascular": (10, 120),
+    "Biologics": (500, 5000),
+    "Oncology": (200, 3000),
+}
 
 END_DATE = date.today()
 if WRITE_MODE == "append":
-    START_DATE = END_DATE - timedelta(days=30)
-    FUND_COUNT = min(FUND_COUNT, 10)
+    START_DATE = END_DATE - timedelta(days=1)
+    ENCOUNTER_COUNT = min(ENCOUNTER_COUNT, 200)
 else:
     START_DATE = END_DATE - timedelta(days=MONTHS_BACK * 30)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Generate dim_funds
+# MAGIC ## 1. Generate dim_encounters
 # MAGIC
-# MAGIC Each manager has a named profile with story arc, strategy, and AUM range.
+# MAGIC Key pattern: Hospital A has higher LOS. Monday discharges have higher LOS.
 
 # COMMAND ----------
 
 from pyspark.sql import Row
 
-funds = []
-manager_names = list(MANAGER_PROFILES.keys())
+encounters = []
+current_date = START_DATE
+
 id_offset = int(datetime.now().timestamp()) if WRITE_MODE == "append" else 0
+for i in range(ENCOUNTER_COUNT):
+    encounter_id = f"ENC_{id_offset + i + 1:010d}"
+    patient_id = f"PAT_{random.randint(1, ENCOUNTER_COUNT // 3):06d}"
+    hospital = random.choices(HOSPITALS, weights=[45, 35, 20])[0]
+    department = random.choice(DEPARTMENTS)
+    payer = random.choice(PAYERS)
+    attending = fake.name()
 
-for i in range(FUND_COUNT):
-    fund_id = f"FUND_{id_offset + i + 1:06d}"
+    # Admit date spread across the date range
+    days_offset = random.randint(0, (END_DATE - START_DATE).days)
+    admit_date = START_DATE + timedelta(days=days_offset)
 
-    # First pass through named managers, then fill with random picks
-    if i < len(manager_names):
-        manager = manager_names[i]
-    else:
-        manager = random.choice(manager_names)
+    # LOS with built-in patterns
+    base_los = random.choices([1, 2, 3, 4, 5, 6, 7, 8, 10, 14], 
+                               weights=[15, 20, 20, 15, 10, 8, 5, 3, 2, 2])[0]
+    
+    # Pattern: Hospital A has higher LOS (+1-2 days)
+    if hospital == "Hospital_A":
+        base_los += random.choice([1, 1, 2])
+    
+    # Pattern: Monday discharges have higher LOS (weekend backlog)
+    discharge_date = admit_date + timedelta(days=base_los)
+    if discharge_date.weekday() == 0:  # Monday
+        base_los += random.choice([1, 2, 2, 3])
+        discharge_date = admit_date + timedelta(days=base_los)
 
-    profile = MANAGER_PROFILES[manager]
-    strategy = profile["strategy"]
-    story = profile["story"]
-    lo, hi = profile["aum_range"]
-    aum = float(round(random.uniform(lo, hi), 1))
+    los_days = max(1, base_los)
+    discharge_date = admit_date + timedelta(days=los_days)
+    discharge_dow = discharge_date.strftime("%A")
 
-    # Vintage year — older for PE/VC (longer fund life), newer for hedge funds
-    if strategy in ("PE Buyout", "Venture Capital"):
-        vintage = random.randint(2017, 2024)
-    elif strategy == "Growth Equity":
-        vintage = random.randint(2019, 2025)
-    else:
-        vintage = random.randint(2020, 2025)
+    # Readmission: ~8% base, higher for Hospital A
+    readmit_rate = 0.12 if hospital == "Hospital_A" else 0.06
+    is_readmission = random.random() < readmit_rate
 
-    # Commitment = AUM * overcommitment factor (PE/VC have larger unfunded)
-    if strategy in ("PE Buyout", "Venture Capital", "Growth Equity"):
-        commitment = float(round(aum * random.uniform(1.2, 1.6), 1))
-    else:
-        commitment = float(round(aum * random.uniform(1.0, 1.15), 1))
+    drg_code = f"DRG_{random.randint(100, 999)}"
 
-    # Status based on story arc
-    if story == "declining_returns":
-        status = "watchlist"
-    elif story == "prospect_new":
-        status = "prospect"
-    elif story == "style_drift":
-        status = random.choice(["watchlist", "active"])
-    elif story == "early_stage":
-        status = random.choice(["active", "prospect"])
-    else:
-        status = random.choices(["active", "prospect", "watchlist"], weights=[75, 15, 10])[0]
-
-    # Domicile weighted by geography
-    if strategy in ("Hedge Fund L/S",):
-        domicile = random.choices(["Cayman Islands", "Delaware"], weights=[60, 40])[0]
-    elif strategy == "Real Assets":
-        domicile = random.choices(["Delaware", "Luxembourg"], weights=[70, 30])[0]
-    else:
-        domicile = random.choices(DOMICILES, weights=[40, 25, 15, 10, 10])[0]
-
-    inception_days = random.randint(365, max(366, MONTHS_BACK * 30))
-    inception_date = END_DATE - timedelta(days=inception_days)
-
-    fund_num = random.choice(["I", "II", "III", "IV", "V", "VI"])
-    fund_name = f"{manager} Fund {fund_num}"
-
-    funds.append(Row(
-        fund_id=fund_id, fund_name=fund_name, manager_name=manager,
-        strategy=strategy, vintage_year=vintage, aum=aum, commitment=commitment,
-        status=status, domicile=domicile,
-        inception_date=datetime.combine(inception_date, datetime.min.time()),
+    encounters.append(Row(
+        encounter_id=encounter_id,
+        patient_id=patient_id,
+        hospital=hospital,
+        department=department,
+        admit_date=datetime.combine(admit_date, datetime.min.time()),
+        discharge_date=datetime.combine(discharge_date, datetime.min.time()),
+        los_days=los_days,
+        discharge_day_of_week=discharge_dow,
+        payer=payer,
+        drg_code=drg_code,
+        attending_physician=attending,
+        is_readmission=is_readmission,
     ))
 
-funds_df = spark.createDataFrame(funds)
-funds_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.dim_funds")
-print(f"Created dim_funds: {FUND_COUNT} rows")
+encounters_df = spark.createDataFrame(encounters)
+encounters_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.dim_encounters")
+print(f"Created dim_encounters: {ENCOUNTER_COUNT} rows")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Generate fact_fund_performance
+# MAGIC ## 2. Generate fact_drug_costs
 # MAGIC
-# MAGIC Story-arc-aware returns: J-curve for early VC, declining for watchlist funds,
-# MAGIC style drift for PulsePoint, exit markups for MedAlliance, etc.
+# MAGIC Key pattern: Hospital A has a drug cost spike in November (expensive biologic).
 
 # COMMAND ----------
 
-perf_rows = []
-fund_df = spark.table(f"{SCHEMA}.dim_funds").collect()
+drug_rows = []
+enc_df = spark.table(f"{SCHEMA}.dim_encounters").collect()
 
-# Lookup story arc for each manager
-story_lookup = {m: p["story"] for m, p in MANAGER_PROFILES.items()}
+for enc in enc_df:
+    # Each encounter gets 2-8 drug orders
+    n_drugs = random.randint(2, 8)
+    for _ in range(n_drugs):
+        category = random.choice(list(DRUG_CATEGORIES.keys()))
+        drug_name = random.choice(DRUG_CATEGORIES[category])
+        low, high = DRUG_BASE_COSTS[category]
+        unit_cost = round(random.uniform(low, high), 2)
+        quantity = random.randint(1, 30)
 
-for fund in fund_df:
-    current = START_DATE.replace(day=1)
-    cumulative_return = 0.0
-    ytd_return = 0.0
-    story = story_lookup.get(fund.manager_name, "steady")
-    total_months = (END_DATE.year - START_DATE.year) * 12 + (END_DATE.month - START_DATE.month)
+        # Pattern: Hospital A November spike - add expensive biologics
+        admit_month = enc.admit_date.month
+        if enc.hospital == "Hospital_A" and admit_month == 11:
+            if random.random() < 0.35:
+                category = "Biologics"
+                drug_name = random.choice(DRUG_CATEGORIES["Biologics"])
+                unit_cost = round(random.uniform(2000, 8000), 2)
+                quantity = random.randint(1, 5)
 
-    while current <= END_DATE:
-        months_ago = (END_DATE.year - current.year) * 12 + (END_DATE.month - current.month)
-        month_idx = total_months - months_ago
+        drug_date = enc.admit_date + timedelta(days=random.randint(0, max(1, enc.los_days - 1)))
 
-        # Base return by strategy
-        if fund.strategy == "PE Buyout":
-            monthly_ret = random.gauss(0.012, 0.02)     # ~15% annual, moderate vol
-        elif fund.strategy == "Venture Capital":
-            monthly_ret = random.gauss(0.014, 0.05)      # ~18% annual, high vol
-        elif fund.strategy == "Growth Equity":
-            monthly_ret = random.gauss(0.011, 0.03)      # ~14% annual
-        elif fund.strategy == "Hedge Fund L/S":
-            monthly_ret = random.gauss(0.006, 0.025)     # ~7% annual, lower vol
-        elif fund.strategy == "Credit & Royalties":
-            monthly_ret = random.gauss(0.007, 0.012)     # ~9% annual, low vol
-        else:  # Real Assets
-            monthly_ret = random.gauss(0.005, 0.015)     # ~6% annual, low vol
-
-        # Story-arc overlays
-        if story == "declining_returns" and months_ago < 6:
-            monthly_ret -= random.uniform(0.015, 0.035)  # significant underperformance
-        elif story == "j_curve" and month_idx < total_months * 0.4:
-            monthly_ret = random.gauss(-0.005, 0.02)     # negative early, then recovery
-        elif story == "top_performer":
-            monthly_ret += random.uniform(0.002, 0.008)  # consistent outperformance
-        elif story == "concentration_risk":
-            monthly_ret *= random.choice([0.7, 1.0, 1.0, 1.5])  # lumpy returns
-        elif story == "volatile":
-            monthly_ret = random.gauss(monthly_ret, 0.04)  # extra vol
-        elif story == "recent_surge" and months_ago < 4:
-            monthly_ret += random.uniform(0.01, 0.025)   # strong recent run
-        elif story == "nearing_exit" and months_ago < 8:
-            monthly_ret += random.uniform(0.005, 0.015)  # exit markups
-        elif story == "early_stage":
-            monthly_ret = random.gauss(-0.002, 0.03)     # pre-revenue, mostly flat/negative
-        elif story == "style_drift":
-            # Drift: was low-vol hedge fund, recently acting like high-vol equity
-            if months_ago < 6:
-                monthly_ret = random.gauss(0.008, 0.05)  # much higher vol than expected
-
-        # Benchmark: Cambridge HC PE composite proxy
-        benchmark_ret = random.gauss(0.007, 0.02)
-
-        cumulative_return += monthly_ret
-        if current.month == 1:
-            ytd_return = monthly_ret
-        else:
-            ytd_return += monthly_ret
-
-        nav = fund.aum * (1 + cumulative_return)
-
-        perf_rows.append(Row(
-            fund_id=fund.fund_id,
-            date=datetime.combine(current, datetime.min.time()),
-            nav=round(nav, 2),
-            monthly_return=round(monthly_ret, 6),
-            ytd_return=round(ytd_return, 6),
-            itd_return=round(cumulative_return, 6),
-            benchmark_return=round(benchmark_ret, 6),
-            alpha=round(monthly_ret - benchmark_ret, 6),
+        drug_rows.append(Row(
+            encounter_id=enc.encounter_id,
+            date=drug_date,
+            hospital=enc.hospital,
+            department=enc.department,
+            drug_name=drug_name,
+            drug_category=category,
+            unit_cost=unit_cost,
+            quantity=quantity,
+            total_cost=round(unit_cost * quantity, 2),
         ))
 
-        if current.month == 12:
-            current = current.replace(year=current.year + 1, month=1)
-        else:
-            current = current.replace(month=current.month + 1)
-
-perf_df = spark.createDataFrame(perf_rows)
-perf_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_fund_performance")
-print(f"Created fact_fund_performance: {len(perf_rows)} rows")
+drug_df = spark.createDataFrame(drug_rows)
+drug_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_drug_costs")
+print(f"Created fact_drug_costs: {len(drug_rows)} rows")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Generate fact_portfolio_holdings
+# MAGIC ## 3. Generate fact_staffing
 # MAGIC
-# MAGIC BioGrowth Partners has dangerously high top-position concentration.
+# MAGIC Key pattern: Cardiology has high contract labor percentage.
 
 # COMMAND ----------
 
-holdings_rows = []
+staffing_rows = []
+current = START_DATE
 
-for fund in fund_df:
-    n_positions = random.randint(8, 25)
-    positions = random.sample(COMPANY_NAMES, min(n_positions, len(COMPANY_NAMES)))
+while current <= END_DATE:
+    for hospital in HOSPITALS:
+        for dept in DEPARTMENTS:
+            for staff_type in STAFF_TYPES:
+                # Base FTE counts
+                if staff_type == "full_time":
+                    base_fte = random.uniform(15, 40)
+                elif staff_type == "contract":
+                    base_fte = random.uniform(2, 8)
+                else:  # per_diem
+                    base_fte = random.uniform(1, 5)
 
-    # Generate quarterly snapshots
-    current = START_DATE.replace(day=1)
-    while current <= END_DATE:
-        if current.month not in (3, 6, 9, 12):
-            if current.month == 12:
-                current = current.replace(year=current.year + 1, month=1)
-            else:
-                current = current.replace(month=current.month + 1)
-            continue
+                # Pattern: Cardiology has high contract labor
+                if dept == "Cardiology" and staff_type == "contract":
+                    base_fte = random.uniform(12, 25)
+                elif dept == "Cardiology" and staff_type == "full_time":
+                    base_fte = random.uniform(10, 20)
 
-        remaining_pct = 100.0
-        fund_story = story_lookup.get(fund.manager_name, "steady")
-        for j, pos in enumerate(positions):
-            # Pattern: BioGrowth Partners has dangerously high top-position concentration
-            if fund_story == "concentration_risk" and j < 3:
-                pct = round(random.uniform(12, 22), 2)
-            elif fund.strategy in ("PE Buyout", "Growth Equity") and j < 3:
-                pct = round(random.uniform(8, 16), 2)
-            else:
-                max_pct = min(remaining_pct / max(1, len(positions) - j), 12)
-                pct = round(random.uniform(1, max(1.5, max_pct)), 2)
+                fte_count = round(base_fte, 1)
+                cost_per_fte = round(random.uniform(300, 800) if staff_type == "full_time"
+                                     else random.uniform(600, 1500) if staff_type == "contract"
+                                     else random.uniform(400, 900), 2)
 
-            remaining_pct -= pct
-            if remaining_pct < 0:
-                pct += remaining_pct
-                remaining_pct = 0.0
+                staffing_rows.append(Row(
+                    date=datetime.combine(current, datetime.min.time()),
+                    hospital=hospital,
+                    department=dept,
+                    staff_type=staff_type,
+                    fte_count=fte_count,
+                    cost_per_fte=cost_per_fte,
+                    total_cost=round(fte_count * cost_per_fte, 2),
+                ))
+    # Weekly granularity to keep size manageable
+    current += timedelta(days=7)
 
-            mv = round(fund.aum * pct / 100, 2)
-            change = round(random.gauss(0, 0.05), 4)
-
-            holdings_rows.append(Row(
-                fund_id=fund.fund_id,
-                date=datetime.combine(current, datetime.min.time()),
-                position_name=pos,
-                sector=random.choices(SECTORS, weights=SECTOR_WEIGHTS)[0],
-                geography=random.choices(GEOGRAPHIES, weights=GEO_WEIGHTS)[0],
-                pct_nav=pct,
-                market_value=mv,
-                change_from_prior=change,
-            ))
-
-        if current.month == 12:
-            current = current.replace(year=current.year + 1, month=1)
-        else:
-            current = current.replace(month=current.month + 1)
-
-holdings_df = spark.createDataFrame(holdings_rows)
-holdings_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_portfolio_holdings")
-print(f"Created fact_portfolio_holdings: {len(holdings_rows)} rows")
+staffing_df = spark.createDataFrame(staffing_rows)
+staffing_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_staffing")
+print(f"Created fact_staffing: {len(staffing_rows)} rows")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Generate fact_fund_flows
+# MAGIC ## 4. Generate fact_ed_wait_times
 # MAGIC
-# MAGIC Key pattern: Q4 capital call spike across portfolio.
+# MAGIC Key pattern: Low-acuity (4-5) patients have wait times above threshold.
 
 # COMMAND ----------
 
-flow_rows = []
+ed_encounters = [e for e in enc_df if e.department == "Emergency"]
+# Also generate some standalone ED visits
+extra_ed = ENCOUNTER_COUNT // 5
 
-for fund in fund_df:
-    current = START_DATE.replace(day=1)
-    commitment_remaining = fund.commitment - fund.aum
+ed_rows = []
+for i, enc in enumerate(ed_encounters):
+    arrival = enc.admit_date + timedelta(hours=random.randint(0, 23), minutes=random.randint(0, 59))
+    acuity = random.choices(ACUITY_LEVELS, weights=[5, 15, 30, 30, 20])[0]
 
-    while current <= END_DATE:
-        # Base flows
-        base_call = round(random.uniform(0, fund.commitment * 0.02), 2)
-        base_dist = round(random.uniform(0, fund.aum * 0.01), 2)
+    # Base wait time by acuity
+    if acuity <= 2:
+        wait_min = max(1.0, random.gauss(15, 8))
+    elif acuity == 3:
+        wait_min = max(5.0, random.gauss(45, 20))
+    else:
+        # Pattern: Low acuity has long waits (above 60-min threshold)
+        wait_min = max(10.0, random.gauss(90, 35))
 
-        # Pattern: Q4 capital call spike
-        if current.month in (10, 11, 12):
-            base_call *= random.uniform(1.5, 3.0)
+    triage_time = arrival + timedelta(minutes=random.randint(2, 15))
+    provider_seen = triage_time + timedelta(minutes=int(wait_min))
+    disposition_time = provider_seen + timedelta(minutes=random.randint(30, 180))
 
-        capital_calls = round(base_call, 2)
-        distributions = round(base_dist, 2)
-        net_flow = round(distributions - capital_calls, 2)
-        commitment_remaining = max(0.0, commitment_remaining - capital_calls)
+    ed_rows.append(Row(
+        encounter_id=enc.encounter_id,
+        hospital=enc.hospital,
+        arrival_time=arrival,
+        triage_time=triage_time,
+        provider_seen_time=provider_seen,
+        disposition_time=disposition_time,
+        wait_minutes=round(wait_min, 1),
+        acuity_level=acuity,
+    ))
 
-        # Liquidity terms by strategy (IPS-aligned)
-        if fund.strategy == "Venture Capital":
-            liquidity = "Locked"
-        elif fund.strategy in ("PE Buyout", "Growth Equity"):
-            liquidity = random.choice(["Annual", "Locked"])
-        elif fund.strategy == "Hedge Fund L/S":
-            liquidity = random.choice(["Monthly", "Quarterly"])
-        elif fund.strategy == "Credit & Royalties":
-            liquidity = random.choice(["Quarterly", "Semi-Annual"])
-        else:
-            liquidity = random.choice(["Quarterly", "Annual"])
+# Extra standalone ED visits
+for i in range(extra_ed):
+    hospital = random.choice(HOSPITALS)
+    days_offset = random.randint(0, (END_DATE - START_DATE).days)
+    arrival_date = START_DATE + timedelta(days=days_offset)
+    arrival = datetime.combine(arrival_date, datetime.min.time()) + timedelta(
+        hours=random.randint(0, 23), minutes=random.randint(0, 59))
+    acuity = random.choices(ACUITY_LEVELS, weights=[5, 15, 30, 30, 20])[0]
 
-        flow_rows.append(Row(
-            fund_id=fund.fund_id,
-            date=datetime.combine(current, datetime.min.time()),
-            capital_calls=capital_calls, distributions=distributions,
-            net_flow=net_flow, commitment_remaining=round(commitment_remaining, 2),
-            liquidity_terms=liquidity,
-        ))
+    if acuity <= 2:
+        wait_min = max(1.0, random.gauss(15, 8))
+    elif acuity == 3:
+        wait_min = max(5.0, random.gauss(45, 20))
+    else:
+        wait_min = max(10.0, random.gauss(90, 35))
 
-        if current.month == 12:
-            current = current.replace(year=current.year + 1, month=1)
-        else:
-            current = current.replace(month=current.month + 1)
+    triage_time = arrival + timedelta(minutes=random.randint(2, 15))
+    provider_seen = triage_time + timedelta(minutes=int(wait_min))
+    disposition_time = provider_seen + timedelta(minutes=random.randint(30, 180))
 
-flow_df = spark.createDataFrame(flow_rows)
-flow_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_fund_flows")
-print(f"Created fact_fund_flows: {len(flow_rows)} rows")
+    ed_rows.append(Row(
+        encounter_id=f"ED_{i+1:06d}",
+        hospital=hospital,
+        arrival_time=arrival,
+        triage_time=triage_time,
+        provider_seen_time=provider_seen,
+        disposition_time=disposition_time,
+        wait_minutes=round(wait_min, 1),
+        acuity_level=acuity,
+    ))
+
+ed_df = spark.createDataFrame(ed_rows)
+ed_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_ed_wait_times")
+print(f"Created fact_ed_wait_times: {len(ed_rows)} rows")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Generate fact_portfolio_kpis
+# MAGIC ## 5. Generate fact_operational_kpis
 
 # COMMAND ----------
 
@@ -438,71 +358,71 @@ kpi_rows = []
 current = START_DATE
 
 while current <= END_DATE:
-    for strategy in STRATEGIES:
-        strategy_funds = [f for f in fund_df if f.strategy == strategy]
-        if not strategy_funds:
-            continue
+    for hospital in HOSPITALS:
+        for dept in DEPARTMENTS:
+            # Base LOS by hospital (pattern: Hospital A higher)
+            if hospital == "Hospital_A":
+                avg_los = round(random.gauss(5.8, 1.2), 1)
+            elif hospital == "Hospital_B":
+                avg_los = round(random.gauss(4.2, 0.9), 1)
+            else:
+                avg_los = round(random.gauss(4.0, 0.8), 1)
 
-        total_aum = sum(f.aum for f in strategy_funds)
+            avg_ed_wait = round(random.gauss(55, 20), 1) if dept == "Emergency" else None
+            bed_util = round(random.uniform(65, 95), 1)
 
-        # Weighted avg return by strategy (IPS-aligned)
-        ret_params = {
-            "PE Buyout":         (0.012, 0.018),
-            "Venture Capital":   (0.014, 0.04),
-            "Growth Equity":     (0.011, 0.025),
-            "Hedge Fund L/S":    (0.006, 0.02),
-            "Credit & Royalties":(0.007, 0.01),
-            "Real Assets":       (0.005, 0.012),
-        }
-        mu, sigma = ret_params.get(strategy, (0.006, 0.02))
-        wav_ret = round(random.gauss(mu, sigma), 6)
+            # Contract labor % - high for Cardiology
+            if dept == "Cardiology":
+                contract_pct = round(random.uniform(30, 55), 1)
+            else:
+                contract_pct = round(random.uniform(5, 20), 1)
 
-        # Pattern: Growth Equity top-5 concentration creeping above IPS 30% limit
-        if strategy == "Growth Equity":
-            conc = round(random.uniform(28, 45), 1)
-        elif strategy == "PE Buyout":
-            conc = round(random.uniform(22, 38), 1)
-        else:
-            conc = round(random.uniform(12, 30), 1)
+            # Drug cost per encounter - spike in Nov for Hospital A
+            base_drug_cost = random.uniform(800, 2500)
+            if hospital == "Hospital_A" and current.month == 11:
+                base_drug_cost *= random.uniform(1.8, 3.0)
 
-        bench_spread = round(wav_ret - random.gauss(0.005, 0.01), 6)
+            readmit_rate = round(random.uniform(8, 15) if hospital == "Hospital_A"
+                                 else random.uniform(4, 9), 1)
 
-        kpi_rows.append(Row(
-            date=datetime.combine(current, datetime.min.time()),
-            portfolio_segment=strategy,
-            total_aum=round(total_aum, 1),
-            weighted_avg_return=wav_ret,
-            concentration_top5_pct=conc,
-            benchmark_spread=bench_spread,
-            manager_count=len(strategy_funds),
-        ))
+            kpi_rows.append(Row(
+                date=datetime.combine(current, datetime.min.time()),
+                hospital=hospital,
+                department=dept,
+                avg_los=max(0.5, avg_los),
+                avg_ed_wait_minutes=max(5.0, avg_ed_wait) if avg_ed_wait else None,
+                bed_utilization_pct=bed_util,
+                contract_labor_pct=contract_pct,
+                drug_cost_per_encounter=round(base_drug_cost, 2),
+                readmission_rate=readmit_rate,
+            ))
     current += timedelta(days=1)
 
 kpi_df = spark.createDataFrame(kpi_rows)
-kpi_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_portfolio_kpis")
-print(f"Created fact_portfolio_kpis: {len(kpi_rows)} rows")
+kpi_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_operational_kpis")
+print(f"Created fact_operational_kpis: {len(kpi_rows)} rows")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Create portfolio_overview VIEW
+# MAGIC ## 6. Create hospital_overview VIEW
 
 # COMMAND ----------
 
-spark.sql(f"DROP VIEW IF EXISTS {SCHEMA}.portfolio_overview")
+spark.sql(f"DROP VIEW IF EXISTS {SCHEMA}.hospital_overview")
 spark.sql(f"""
-CREATE VIEW {SCHEMA}.portfolio_overview AS
+CREATE VIEW {SCHEMA}.hospital_overview AS
 SELECT
-    f.strategy,
-    COUNT(*) as fund_count,
-    ROUND(SUM(f.aum), 1) as total_aum,
-    ROUND(AVG(f.aum), 1) as avg_aum,
-    COUNT(DISTINCT f.manager_name) as manager_count,
-    SUM(CASE WHEN f.status = 'watchlist' THEN 1 ELSE 0 END) as watchlist_count
-FROM {SCHEMA}.dim_funds f
-GROUP BY f.strategy
+    e.hospital,
+    COUNT(*) as total_encounters,
+    ROUND(AVG(e.los_days), 1) as avg_los,
+    ROUND(SUM(CASE WHEN e.is_readmission THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) as readmission_rate_pct,
+    COUNT(DISTINCT e.department) as department_count,
+    COUNT(DISTINCT e.attending_physician) as physician_count
+FROM {SCHEMA}.dim_encounters e
+GROUP BY e.hospital
 """)
-print("Created portfolio_overview VIEW")
+print("Created hospital_overview VIEW")
 
 # COMMAND ----------
 
@@ -512,8 +432,8 @@ print("Created portfolio_overview VIEW")
 # COMMAND ----------
 
 tables = [
-    "dim_funds", "fact_fund_performance", "fact_portfolio_holdings",
-    "fact_fund_flows", "fact_portfolio_kpis"
+    "dim_encounters", "fact_drug_costs", "fact_staffing",
+    "fact_ed_wait_times", "fact_operational_kpis"
 ]
 
 print("=" * 60)
@@ -522,21 +442,16 @@ print("=" * 60)
 for t in tables:
     count = spark.sql(f"SELECT COUNT(*) as cnt FROM {SCHEMA}.{t}").collect()[0][0]
     print(f"  {t}: {count:,} rows")
-print(f"  portfolio_overview: VIEW")
+print(f"  hospital_overview: VIEW")
 print("=" * 60)
 print()
-print("Built-in patterns for the agent to discover:")
-print("  - MedVenture Alpha (VC): declining returns last 6mo, on watchlist")
-print("  - Asclepius Capital (PE Buyout): consistent top-performer, positive alpha")
-print("  - BioGrowth Partners (Growth Equity): dangerous position concentration in top 3 holdings")
-print("  - Genomics Partners / NovaBio (VC): J-curve — negative early returns, recovering")
-print("  - PulsePoint Capital (Hedge Fund): style drift — recent vol spike vs historical profile")
-print("  - MedTech Growth Fund: strong recent surge last 4 months")
-print("  - MedAlliance Partners (PE Buyout): nearing exit with markups")
-print("  - Q4 capital call spike across portfolio")
-print("  - Growth Equity: top-5 concentration approaching IPS 30% limit")
-print("  - SynapsePoint Capital: prospect fund under evaluation")
+print("Built-in patterns:")
+print("  - Hospital A: higher LOS, higher readmission rate")
+print("  - Hospital A November: drug cost spike (biologics)")
+print("  - Monday discharges: higher LOS (weekend backlog)")
+print("  - Low-acuity ED: wait times above 60-min threshold")
+print("  - Cardiology: high contract labor (30-55%)")
 
 # COMMAND ----------
 
-display(spark.table(f"{SCHEMA}.portfolio_overview"))
+display(spark.table(f"{SCHEMA}.hospital_overview"))

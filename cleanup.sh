@@ -24,7 +24,7 @@ WAREHOUSE_ID=$(read_var "warehouse_id")
 VECTOR_ENDPOINT=$(read_var "vector_search_endpoint")
 
 echo "=========================================="
-echo " Investment Intel -- Cleanup"
+echo " Hospital Control Tower -- Cleanup"
 echo " Target: $TARGET"
 echo " Catalog: ${CATALOG:-<not set>}"
 echo " Schema: ${SCHEMA:-<not set>}"
@@ -40,7 +40,7 @@ echo ""
 # --- Step 1: Delete vector search indexes ---
 if [[ -n "$VECTOR_ENDPOINT" && -n "$CATALOG" && -n "$SCHEMA" ]]; then
   echo "[1/4] Deleting vector search indexes..."
-  for INDEX in "${CATALOG}.${SCHEMA}.fund_documents_vector_index" "${CATALOG}.${SCHEMA}.investment_policy_vector_index"; do
+  for INDEX in "${CATALOG}.${SCHEMA}.encounters_vector_index" "${CATALOG}.${SCHEMA}.sop_vector_index"; do
     echo "  Deleting index: $INDEX"
     databricks vector-search indexes delete "$INDEX" $PROFILE_ARG 2>/dev/null \
       && echo "    Deleted" \
@@ -82,10 +82,10 @@ if [[ -n "$CATALOG" && -n "$SCHEMA" && -n "$WAREHOUSE_ID" ]]; then
     }" > /dev/null 2>&1 || echo "    Warning: failed to drop ${TABLE}"
   done
 
-  echo "  DROP VIEW IF EXISTS ${CATALOG}.${SCHEMA}.portfolio_overview"
+  echo "  DROP VIEW IF EXISTS ${CATALOG}.${SCHEMA}.hospital_overview"
   databricks api post /api/2.0/sql/statements $PROFILE_ARG --json "{
     \"warehouse_id\": \"${WAREHOUSE_ID}\",
-    \"statement\": \"DROP VIEW IF EXISTS ${CATALOG}.${SCHEMA}.portfolio_overview\",
+    \"statement\": \"DROP VIEW IF EXISTS ${CATALOG}.${SCHEMA}.hospital_overview\",
     \"wait_timeout\": \"30s\"
   }" > /dev/null 2>&1 || echo "    Warning: failed to drop view"
 

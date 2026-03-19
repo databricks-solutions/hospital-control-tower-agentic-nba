@@ -12,7 +12,7 @@ from typing_extensions import TypedDict
 
 from .tools import (
     ORCHESTRATOR_TOOLS,
-    execute_sql, search_fund_documents, write_analysis,
+    execute_sql, search_encounters, write_analysis,
     ANALYSIS_TABLE, WAREHOUSE_ID,
 )
 from .orchestrator import select_tools_for_context, get_system_prompt_for_context
@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 LLM_ORCHESTRATOR = os.environ.get("LLM_MODEL_ORCHESTRATOR", "databricks-gpt-oss-120b")
 LLM_RAG = os.environ.get("LLM_MODEL_RAG", "databricks-claude-sonnet-4-5")
 CATALOG = os.environ.get("CATALOG", "")
-SCHEMA = os.environ.get("SCHEMA", "investment_intel")
+SCHEMA = os.environ.get("SCHEMA", "med_logistics_nba")
 
-ANALYSIS_TYPES = ["performance_drivers", "concentration", "fund_flows", "exposure_shifts", "policy_compliance"]
+ANALYSIS_TYPES = ["cost_monitoring", "los_analysis", "ed_performance", "staffing_analysis", "compliance_monitoring"]
 
 
 def get_llm():
@@ -116,7 +116,7 @@ class DeepAnalysisState(TypedDict):
     tool_calls_made: Annotated[list, add]
 
 
-SUPERVISOR_PROMPT = """You are a supervisor coordinating a deep analysis of investment portfolio data.
+SUPERVISOR_PROMPT = """You are a supervisor coordinating a deep analysis of hospital operations data.
 
 Given the user's question and the current analysis state, decide the single next step.
 Respond with EXACTLY one word from: CLARIFY, PLAN, RETRIEVE, ANALYZE, RESPOND.
@@ -131,21 +131,21 @@ Decision rules:
 Current state will be provided. Return ONLY one word."""
 
 
-PLANNER_PROMPT = f"""You are a planning specialist for investment portfolio analysis.
+PLANNER_PROMPT = f"""You are a planning specialist for hospital operations analysis.
 
 Given the user question and prerequisite analysis status, produce a concise numbered plan
 of data-gathering steps the Retrieval agent should execute.
 
 Available tables in {CATALOG}.{SCHEMA}:
-- dim_funds, fact_fund_performance, fact_portfolio_holdings, fact_fund_flows, fact_portfolio_kpis, portfolio_overview
+- dim_encounters, fact_drug_costs, fact_staffing, fact_ed_wait_times, fact_operational_kpis, hospital_overview
 
-Available tools: execute_sql, search_fund_documents
+Available tools: execute_sql, search_encounters
 
 IMPORTANT: If the prerequisite status shows a relevant analysis is MISSING, note it.
 Keep the plan to 3-6 steps max. Return a numbered list."""
 
 
-RETRIEVAL_PROMPT = f"""You are a data retrieval specialist for investment portfolio intelligence.
+RETRIEVAL_PROMPT = f"""You are a data retrieval specialist for hospital operations.
 
 Execute the data-gathering plan provided. For EACH piece of data, note which tool provided it.
 
@@ -156,7 +156,7 @@ Format:
 Use {CATALOG}.{SCHEMA} as the catalog/schema for SQL queries."""
 
 
-ANALYST_PROMPT = """You are a senior investment portfolio analyst.
+ANALYST_PROMPT = """You are a senior hospital operations analyst.
 
 Given the retrieved evidence, produce a structured analysis:
 
@@ -213,7 +213,7 @@ def planner_node(state: DeepAnalysisState) -> dict:
 
 def retrieval_node(state: DeepAnalysisState) -> dict:
     llm = get_llm()
-    agent = create_react_agent(llm, [execute_sql, search_fund_documents])
+    agent = create_react_agent(llm, [execute_sql, search_encounters])
     prompt = f"Execute this data-gathering plan:\n\n{state.get('plan', '')}\n\nUser question: {state['user_query']}"
     result = agent.invoke({"messages": [SystemMessage(content=RETRIEVAL_PROMPT), HumanMessage(content=prompt)]})
     evidence = ""
