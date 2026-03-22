@@ -27,6 +27,19 @@
 
 # COMMAND ----------
 
+import os, sys
+try:
+    _nb = str(dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get())
+    _root = os.path.dirname(os.path.dirname(_nb))
+    if not _root.startswith("/Workspace"):
+        _root = "/Workspace" + _root
+    sys.path.insert(0, _root)
+    from dbx_hospital_ops import __version__
+except Exception:
+    pass
+
+# COMMAND ----------
+
 import random
 from datetime import datetime, timedelta, date
 from pyspark.sql import functions as F

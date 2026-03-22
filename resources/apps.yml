@@ -19,8 +19,3 @@ resources:
             securable_type: TABLE
             securable_full_name: ${var.catalog}.${var.schema}.encounters_vector_index
             permission: SELECT
-        - name: sop_index
-          uc_securable:
-            securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.sop_vector_index
-            permission: SELECT

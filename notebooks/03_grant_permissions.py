@@ -151,14 +151,22 @@ for idx_name in [ENCOUNTER_VECTOR_INDEX, SOP_VECTOR_INDEX]:
 
 # COMMAND ----------
 
-MODEL_ENDPOINTS = [
-    "databricks-claude-sonnet-4-5",
-]
+dbutils.widgets.text("var.llm_model_orchestrator", "databricks-gpt-oss-120b", "Orchestrator Model")
+dbutils.widgets.text("var.llm_model_rag", "databricks-claude-sonnet-4-5", "RAG Model")
+LLM_ORCHESTRATOR = dbutils.widgets.get("var.llm_model_orchestrator")
+LLM_RAG = dbutils.widgets.get("var.llm_model_rag")
+
+MODEL_ENDPOINTS = list(set(filter(None, [
+    LLM_ORCHESTRATOR,
+    LLM_RAG,
+    "databricks-gte-large-en",
+])))
+
+from databricks.sdk.service.serving import ServingEndpointAccessControlRequest, ServingEndpointPermissionLevel
 
 for endpoint_name in MODEL_ENDPOINTS:
     try:
-        from databricks.sdk.service.serving import ServingEndpointAccessControlRequest, ServingEndpointPermissionLevel
-        w.serving_endpoints.set_permissions(
+        w.serving_endpoints.update_permissions(
             serving_endpoint_id=endpoint_name,
             access_control_list=[
                 ServingEndpointAccessControlRequest(
@@ -191,10 +199,9 @@ print(f"  - SELECT on: {', '.join(READ_TABLES)}")
 print(f"  - SELECT + MODIFY on: {', '.join(WRITE_TABLES)}")
 print(f"")
 print("Vector Search:")
-print(f"  - CAN_USE on {VECTOR_ENDPOINT}")
-print(f"  - Encounter Index: {ENCOUNTER_VECTOR_INDEX}")
-print(f"  - SOP Index: {SOP_VECTOR_INDEX}")
+print(f"  - CAN_USE on endpoint: {VECTOR_ENDPOINT}")
+print(f"  - SELECT on: {ENCOUNTER_VECTOR_INDEX}, {SOP_VECTOR_INDEX}")
 print(f"")
-print("Models:")
+print("Serving Endpoints:")
 print(f"  - CAN_QUERY on: {', '.join(MODEL_ENDPOINTS)}")
 print("=" * 60)

@@ -58,6 +58,8 @@ resources:
               "var.schema": ${var.schema}
               "var.app_name": "${bundle.target}-hospital-control-tower"
               "var.vector_search_endpoint": ${var.vector_search_endpoint}
+              "var.llm_model_orchestrator": ${var.llm_model_orchestrator}
+              "var.llm_model_rag": ${var.llm_model_rag}
               "var.service_principal_id": ""
               "var.service_principal_name": ""
           new_cluster:
