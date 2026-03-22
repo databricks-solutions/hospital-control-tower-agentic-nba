@@ -20,13 +20,24 @@ dbutils.widgets.text("var.schema", "investment_intel", "Schema")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
+
 print(f"Unity Catalog: {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {CATALOG}")
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
-spark.sql(f"USE SCHEMA {SCHEMA}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {qname(CATALOG, SCHEMA)}")
+spark.sql(f"USE SCHEMA {qident(SCHEMA)}")
 
 # COMMAND ----------
 
@@ -36,7 +47,7 @@ spark.sql(f"USE SCHEMA {SCHEMA}")
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {SCHEMA}.dim_funds (
+CREATE TABLE IF NOT EXISTS {qname(SCHEMA, 'dim_funds')} (
     fund_id STRING COMMENT 'Unique fund identifier',
     fund_name STRING COMMENT 'Fund display name',
     manager_name STRING COMMENT 'Portfolio manager / GP name',
@@ -52,7 +63,7 @@ USING DELTA
 COMMENT 'Fund and manager dimension table'
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 """)
-print(f"Created {SCHEMA}.dim_funds")
+print(f"Created {qname(SCHEMA, 'dim_funds')}")
 
 # COMMAND ----------
 
@@ -62,7 +73,7 @@ print(f"Created {SCHEMA}.dim_funds")
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {SCHEMA}.fact_fund_performance (
+CREATE TABLE IF NOT EXISTS {qname(SCHEMA, 'fact_fund_performance')} (
     fund_id STRING COMMENT 'Fund identifier',
     date TIMESTAMP COMMENT 'Reporting date',
     nav DOUBLE COMMENT 'Net asset value (USD millions)',
@@ -76,7 +87,7 @@ USING DELTA
 COMMENT 'Monthly fund performance and returns'
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 """)
-print(f"Created {SCHEMA}.fact_fund_performance")
+print(f"Created {qname(SCHEMA, 'fact_fund_performance')}")
 
 # COMMAND ----------
 
@@ -86,7 +97,7 @@ print(f"Created {SCHEMA}.fact_fund_performance")
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {SCHEMA}.fact_portfolio_holdings (
+CREATE TABLE IF NOT EXISTS {qname(SCHEMA, 'fact_portfolio_holdings')} (
     fund_id STRING COMMENT 'Fund identifier',
     date TIMESTAMP COMMENT 'Reporting date',
     position_name STRING COMMENT 'Position / company name',
@@ -100,7 +111,7 @@ USING DELTA
 COMMENT 'Position-level portfolio holdings'
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 """)
-print(f"Created {SCHEMA}.fact_portfolio_holdings")
+print(f"Created {qname(SCHEMA, 'fact_portfolio_holdings')}")
 
 # COMMAND ----------
 
@@ -110,7 +121,7 @@ print(f"Created {SCHEMA}.fact_portfolio_holdings")
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {SCHEMA}.fact_fund_flows (
+CREATE TABLE IF NOT EXISTS {qname(SCHEMA, 'fact_fund_flows')} (
     fund_id STRING COMMENT 'Fund identifier',
     date TIMESTAMP COMMENT 'Flow date',
     capital_calls DOUBLE COMMENT 'Capital called (USD millions)',
@@ -123,7 +134,7 @@ USING DELTA
 COMMENT 'Fund capital calls, distributions, and flows'
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 """)
-print(f"Created {SCHEMA}.fact_fund_flows")
+print(f"Created {qname(SCHEMA, 'fact_fund_flows')}")
 
 # COMMAND ----------
 
@@ -133,7 +144,7 @@ print(f"Created {SCHEMA}.fact_fund_flows")
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {SCHEMA}.fact_portfolio_kpis (
+CREATE TABLE IF NOT EXISTS {qname(SCHEMA, 'fact_portfolio_kpis')} (
     date TIMESTAMP COMMENT 'Date',
     portfolio_segment STRING COMMENT 'Strategy segment',
     total_aum DOUBLE COMMENT 'Total AUM for segment (USD millions)',
@@ -146,7 +157,7 @@ USING DELTA
 COMMENT 'Daily portfolio-level KPIs by strategy segment'
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 """)
-print(f"Created {SCHEMA}.fact_portfolio_kpis")
+print(f"Created {qname(SCHEMA, 'fact_portfolio_kpis')}")
 
 # COMMAND ----------
 
@@ -155,9 +166,9 @@ print(f"Created {SCHEMA}.fact_portfolio_kpis")
 
 # COMMAND ----------
 
-spark.sql(f"DROP VIEW IF EXISTS {SCHEMA}.portfolio_overview")
+spark.sql(f"DROP VIEW IF EXISTS {qname(SCHEMA, 'portfolio_overview')}")
 spark.sql(f"""
-CREATE VIEW {SCHEMA}.portfolio_overview AS
+CREATE VIEW {qname(SCHEMA, 'portfolio_overview')} AS
 SELECT
     f.strategy,
     COUNT(*) as fund_count,
@@ -165,10 +176,10 @@ SELECT
     ROUND(AVG(f.aum), 1) as avg_aum,
     COUNT(DISTINCT f.manager_name) as manager_count,
     SUM(CASE WHEN f.status = 'watchlist' THEN 1 ELSE 0 END) as watchlist_count
-FROM {SCHEMA}.dim_funds f
+FROM {qname(SCHEMA, 'dim_funds')} f
 GROUP BY f.strategy
 """)
-print(f"Created {SCHEMA}.portfolio_overview VIEW")
+print(f"Created {qname(SCHEMA, 'portfolio_overview')} VIEW")
 
 # COMMAND ----------
 
@@ -178,11 +189,11 @@ print(f"Created {SCHEMA}.portfolio_overview VIEW")
 # COMMAND ----------
 
 core_tables = [
-    f"{SCHEMA}.dim_funds",
-    f"{SCHEMA}.fact_fund_performance",
-    f"{SCHEMA}.fact_portfolio_holdings",
-    f"{SCHEMA}.fact_fund_flows",
-    f"{SCHEMA}.fact_portfolio_kpis",
+    qname(SCHEMA, "dim_funds"),
+    qname(SCHEMA, "fact_fund_performance"),
+    qname(SCHEMA, "fact_portfolio_holdings"),
+    qname(SCHEMA, "fact_fund_flows"),
+    qname(SCHEMA, "fact_portfolio_kpis"),
 ]
 
 print("=" * 60)
@@ -198,8 +209,8 @@ for table in core_tables:
         count = spark.sql(f"SELECT COUNT(*) as cnt FROM {table}").collect()[0][0]
         print(f"  Rows: {count:,}")
 
-view_exists = spark.catalog.tableExists(f"{SCHEMA}.portfolio_overview")
-print(f"{'EXISTS' if view_exists else 'MISSING'}: {SCHEMA}.portfolio_overview (VIEW)")
+view_exists = spark.catalog.tableExists(qname(SCHEMA, "portfolio_overview"))
+print(f"{'EXISTS' if view_exists else 'MISSING'}: {qname(SCHEMA, 'portfolio_overview')} (VIEW)")
 
 # COMMAND ----------
 
@@ -228,4 +239,4 @@ print("=" * 60)
 
 # COMMAND ----------
 
-display(spark.sql(f"SHOW TABLES IN {SCHEMA}"))
+display(spark.sql(f"SHOW TABLES IN {qident(SCHEMA)}"))

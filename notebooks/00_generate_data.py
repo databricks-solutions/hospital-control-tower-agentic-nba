@@ -40,6 +40,17 @@ fake = Faker()
 Faker.seed(42)
 random.seed(42)
 
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
+
 dbutils.widgets.text("var.catalog", "", "Catalog")
 dbutils.widgets.text("var.schema", "investment_intel", "Schema")
 CATALOG = dbutils.widgets.get("var.catalog")
@@ -58,9 +69,9 @@ print(f"Target: {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
 
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
-spark.sql(f"USE CATALOG {CATALOG}")
-spark.sql(f"USE SCHEMA {SCHEMA}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {qname(CATALOG, SCHEMA)}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
+spark.sql(f"USE SCHEMA {qident(SCHEMA)}")
 
 # COMMAND ----------
 
@@ -207,7 +218,7 @@ for i in range(FUND_COUNT):
     ))
 
 funds_df = spark.createDataFrame(funds)
-funds_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.dim_funds")
+funds_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(qname(SCHEMA, "dim_funds"))
 print(f"Created dim_funds: {FUND_COUNT} rows")
 
 # COMMAND ----------
@@ -221,7 +232,7 @@ print(f"Created dim_funds: {FUND_COUNT} rows")
 # COMMAND ----------
 
 perf_rows = []
-fund_df = spark.table(f"{SCHEMA}.dim_funds").collect()
+fund_df = spark.table(qname(SCHEMA, "dim_funds")).collect()
 
 # Lookup story arc for each manager
 story_lookup = {m: p["story"] for m, p in MANAGER_PROFILES.items()}
@@ -301,7 +312,7 @@ for fund in fund_df:
             current = current.replace(month=current.month + 1)
 
 perf_df = spark.createDataFrame(perf_rows)
-perf_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_fund_performance")
+perf_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(qname(SCHEMA, "fact_fund_performance"))
 print(f"Created fact_fund_performance: {len(perf_rows)} rows")
 
 # COMMAND ----------
@@ -366,7 +377,7 @@ for fund in fund_df:
             current = current.replace(month=current.month + 1)
 
 holdings_df = spark.createDataFrame(holdings_rows)
-holdings_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_portfolio_holdings")
+holdings_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(qname(SCHEMA, "fact_portfolio_holdings"))
 print(f"Created fact_portfolio_holdings: {len(holdings_rows)} rows")
 
 # COMMAND ----------
@@ -424,7 +435,7 @@ for fund in fund_df:
             current = current.replace(month=current.month + 1)
 
 flow_df = spark.createDataFrame(flow_rows)
-flow_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_fund_flows")
+flow_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(qname(SCHEMA, "fact_fund_flows"))
 print(f"Created fact_fund_flows: {len(flow_rows)} rows")
 
 # COMMAND ----------
@@ -479,7 +490,7 @@ while current <= END_DATE:
     current += timedelta(days=1)
 
 kpi_df = spark.createDataFrame(kpi_rows)
-kpi_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(f"{SCHEMA}.fact_portfolio_kpis")
+kpi_df.write.option("mergeSchema", "true").mode(WRITE_MODE).saveAsTable(qname(SCHEMA, "fact_portfolio_kpis"))
 print(f"Created fact_portfolio_kpis: {len(kpi_rows)} rows")
 
 # COMMAND ----------
@@ -489,9 +500,9 @@ print(f"Created fact_portfolio_kpis: {len(kpi_rows)} rows")
 
 # COMMAND ----------
 
-spark.sql(f"DROP VIEW IF EXISTS {SCHEMA}.portfolio_overview")
+spark.sql(f"DROP VIEW IF EXISTS {qname(SCHEMA, 'portfolio_overview')}")
 spark.sql(f"""
-CREATE VIEW {SCHEMA}.portfolio_overview AS
+CREATE VIEW {qname(SCHEMA, 'portfolio_overview')} AS
 SELECT
     f.strategy,
     COUNT(*) as fund_count,
@@ -499,7 +510,7 @@ SELECT
     ROUND(AVG(f.aum), 1) as avg_aum,
     COUNT(DISTINCT f.manager_name) as manager_count,
     SUM(CASE WHEN f.status = 'watchlist' THEN 1 ELSE 0 END) as watchlist_count
-FROM {SCHEMA}.dim_funds f
+FROM {qname(SCHEMA, 'dim_funds')} f
 GROUP BY f.strategy
 """)
 print("Created portfolio_overview VIEW")
@@ -520,7 +531,7 @@ print("=" * 60)
 print("DATA GENERATION COMPLETE")
 print("=" * 60)
 for t in tables:
-    count = spark.sql(f"SELECT COUNT(*) as cnt FROM {SCHEMA}.{t}").collect()[0][0]
+    count = spark.sql(f"SELECT COUNT(*) as cnt FROM {qname(SCHEMA, t)}").collect()[0][0]
     print(f"  {t}: {count:,} rows")
 print(f"  portfolio_overview: VIEW")
 print("=" * 60)
@@ -539,4 +550,4 @@ print("  - SynapsePoint Capital: prospect fund under evaluation")
 
 # COMMAND ----------
 
-display(spark.table(f"{SCHEMA}.portfolio_overview"))
+display(spark.table(qname(SCHEMA, "portfolio_overview")))

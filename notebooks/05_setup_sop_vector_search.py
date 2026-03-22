@@ -19,10 +19,22 @@ dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 VECTOR_ENDPOINT = dbutils.widgets.get("var.vector_search_endpoint")
-IPS_VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.investment_policy_vector_index"
-IPS_DOCS_TABLE = f"{CATALOG}.{SCHEMA}.investment_policy_docs"
-IPS_PARSED_TABLE = f"{CATALOG}.{SCHEMA}.investment_policy_parsed"
-IPS_CHUNKS_TABLE = f"{CATALOG}.{SCHEMA}.investment_policy_chunks"
+
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
+
+IPS_VECTOR_INDEX = qname(CATALOG, SCHEMA, "investment_policy_vector_index")
+IPS_DOCS_TABLE = qname(CATALOG, SCHEMA, "investment_policy_docs")
+IPS_PARSED_TABLE = qname(CATALOG, SCHEMA, "investment_policy_parsed")
+IPS_CHUNKS_TABLE = qname(CATALOG, SCHEMA, "investment_policy_chunks")
 
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
@@ -32,7 +44,7 @@ print(f"IPS Docs Table: {IPS_DOCS_TABLE}")
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
 
 # COMMAND ----------
 
@@ -44,7 +56,7 @@ spark.sql(f"USE CATALOG {CATALOG}")
 IPS_VOLUME_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/sop_samples"
 
 # Create volume if it doesn't exist
-spark.sql(f"CREATE VOLUME IF NOT EXISTS {CATALOG}.{SCHEMA}.sop_samples")
+spark.sql(f"CREATE VOLUME IF NOT EXISTS {qname(CATALOG, SCHEMA, 'sop_samples')}")
 
 # Generate sample IPS docs if volume is empty
 import os

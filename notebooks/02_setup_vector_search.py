@@ -18,8 +18,20 @@ dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 VECTOR_ENDPOINT = dbutils.widgets.get("var.vector_search_endpoint")
-VECTOR_INDEX = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
-SOURCE_TABLE = f"{CATALOG}.{SCHEMA}.fund_documents_for_embedding"
+
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
+
+VECTOR_INDEX = qname(CATALOG, SCHEMA, "fund_documents_vector_index")
+SOURCE_TABLE = qname(CATALOG, SCHEMA, "fund_documents_for_embedding")
 
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
@@ -29,7 +41,7 @@ print(f"Source Table: {SOURCE_TABLE}")
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
 
 # COMMAND ----------
 
@@ -78,7 +90,7 @@ else:
 
 # Check source table exists
 try:
-    count = spark.sql(f"SELECT COUNT(*) FROM {CATALOG}.{SCHEMA}.dim_funds").collect()[0][0]
+    count = spark.sql(f"SELECT COUNT(*) FROM {qname(CATALOG, SCHEMA, 'dim_funds')}").collect()[0][0]
     print(f"Source table dim_funds exists with {count} rows")
 except Exception as e:
     print(f"ERROR: dim_funds not found: {e}")
@@ -111,7 +123,7 @@ SELECT
         'Status: ', COALESCE(f.status, 'unknown'), '. ',
         'Domicile: ', COALESCE(f.domicile, 'unknown'), '.'
     ) as text_content
-FROM {CATALOG}.{SCHEMA}.dim_funds f
+FROM {qname(CATALOG, SCHEMA, 'dim_funds')} f
 """)
 
 count = spark.sql(f"SELECT COUNT(*) FROM {SOURCE_TABLE}").collect()[0][0]

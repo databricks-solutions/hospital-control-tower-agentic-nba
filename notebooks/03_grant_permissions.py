@@ -14,6 +14,17 @@ CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 APP_NAME = dbutils.widgets.get("var.app_name")
 
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
+
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
 print(f"App Name: {APP_NAME}")
@@ -48,19 +59,28 @@ print(f"Resolved SP from app '{APP_NAME}': {PRINCIPAL} (id={SP_ID})")
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
 
-# USE CATALOG -- must succeed or the whole notebook fails
-spark.sql(f"GRANT USE CATALOG ON CATALOG {CATALOG} TO {PRINCIPAL}")
-print(f"OK: Granted USE CATALOG on {CATALOG} to {PRINCIPAL}")
+# USE CATALOG -- try to grant, but don't fail the whole notebook if caller lacks MANAGE
+try:
+    spark.sql(f"GRANT USE CATALOG ON CATALOG {qident(CATALOG)} TO {PRINCIPAL}")
+    print(f"OK: Granted USE CATALOG on {CATALOG} to {PRINCIPAL}")
+except Exception as e:
+    print(f"SKIP: Could not grant USE CATALOG on {CATALOG}: {e}")
 
-# USE SCHEMA -- must succeed
-spark.sql(f"GRANT USE SCHEMA ON SCHEMA {CATALOG}.{SCHEMA} TO {PRINCIPAL}")
-print(f"OK: Granted USE SCHEMA on {CATALOG}.{SCHEMA} to {PRINCIPAL}")
+# USE SCHEMA -- try to grant, but don't fail if caller lacks MANAGE
+try:
+    spark.sql(f"GRANT USE SCHEMA ON SCHEMA {qname(CATALOG, SCHEMA)} TO {PRINCIPAL}")
+    print(f"OK: Granted USE SCHEMA on {CATALOG}.{SCHEMA} to {PRINCIPAL}")
+except Exception as e:
+    print(f"SKIP: Could not grant USE SCHEMA on {CATALOG}.{SCHEMA}: {e}")
 
-# CREATE TABLE -- needed so the app can self-heal analysis_outputs on startup
-spark.sql(f"GRANT CREATE TABLE ON SCHEMA {CATALOG}.{SCHEMA} TO {PRINCIPAL}")
-print(f"OK: Granted CREATE TABLE on {CATALOG}.{SCHEMA} to {PRINCIPAL}")
+# CREATE TABLE -- try to grant, but don't fail if caller lacks MANAGE
+try:
+    spark.sql(f"GRANT CREATE TABLE ON SCHEMA {qname(CATALOG, SCHEMA)} TO {PRINCIPAL}")
+    print(f"OK: Granted CREATE TABLE on {CATALOG}.{SCHEMA} to {PRINCIPAL}")
+except Exception as e:
+    print(f"SKIP: Could not grant CREATE TABLE on {CATALOG}.{SCHEMA}: {e}")
 
 # COMMAND ----------
 
@@ -91,7 +111,7 @@ WRITE_TABLES = [
 print("Granting SELECT permissions:")
 for table in READ_TABLES:
     try:
-        spark.sql(f"GRANT SELECT ON TABLE {CATALOG}.{SCHEMA}.{table} TO {PRINCIPAL}")
+        spark.sql(f"GRANT SELECT ON TABLE {qname(CATALOG, SCHEMA, table)} TO {PRINCIPAL}")
         print(f"  OK: SELECT on {table}")
     except Exception as e:
         print(f"  SKIP: SELECT on {table}: {e}")
@@ -99,7 +119,7 @@ for table in READ_TABLES:
 print("\nGranting SELECT + MODIFY permissions:")
 for table in WRITE_TABLES:
     try:
-        spark.sql(f"GRANT SELECT, MODIFY ON TABLE {CATALOG}.{SCHEMA}.{table} TO {PRINCIPAL}")
+        spark.sql(f"GRANT SELECT, MODIFY ON TABLE {qname(CATALOG, SCHEMA, table)} TO {PRINCIPAL}")
         print(f"  OK: SELECT, MODIFY on {table}")
     except Exception as e:
         print(f"  SKIP: MODIFY on {table}: {e}")

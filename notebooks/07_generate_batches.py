@@ -27,6 +27,16 @@ dbutils.widgets.text("var.schema", "investment_intel", "Schema")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
 dbutils.widgets.text("fund_count", "10", "Number of Funds to Add")
 dbutils.widgets.text("months_of_performance", "12", "Months of Performance per Fund")
 
@@ -45,8 +55,8 @@ print(f"Target: {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {CATALOG}")
-spark.sql(f"USE SCHEMA {SCHEMA}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
+spark.sql(f"USE SCHEMA {qident(SCHEMA)}")
 
 # COMMAND ----------
 
@@ -61,7 +71,7 @@ DOMICILES = ["Cayman", "Delaware", "Luxembourg", "Ireland", "Bermuda"]
 
 # Get max fund ID from existing data
 try:
-    result = spark.sql(f"SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(fund_id, '[^0-9]', '') AS BIGINT)), 0) as max_id FROM {SCHEMA}.dim_funds").collect()[0][0]
+    result = spark.sql(f"SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(fund_id, '[^0-9]', '') AS BIGINT)), 0) as max_id FROM {qname(SCHEMA, 'dim_funds')}").collect()[0][0]
     START_ID = int(result) + 1
 except:
     START_ID = 1
@@ -97,7 +107,7 @@ for i in range(FUND_COUNT):
     ))
 
 funds_df = spark.createDataFrame(funds)
-funds_df.write.mode("append").saveAsTable(f"{SCHEMA}.dim_funds")
+funds_df.write.mode("append").saveAsTable(qname(SCHEMA, "dim_funds"))
 print(f"✓ Inserted {FUND_COUNT} funds into dim_funds")
 
 # COMMAND ----------
@@ -129,7 +139,7 @@ for fund in funds:
 
 if performance_rows:
     perf_df = spark.createDataFrame(performance_rows)
-    perf_df.write.mode("append").saveAsTable(f"{SCHEMA}.fact_fund_performance")
+perf_df.write.mode("append").saveAsTable(qname(SCHEMA, "fact_fund_performance"))
     print(f"✓ Added {len(performance_rows)} fund performance records")
 
 # COMMAND ----------
@@ -157,7 +167,7 @@ for fund in funds:
 
 if holding_rows:
     holdings_df = spark.createDataFrame(holding_rows)
-    holdings_df.write.mode("append").saveAsTable(f"{SCHEMA}.fact_portfolio_holdings")
+holdings_df.write.mode("append").saveAsTable(qname(SCHEMA, "fact_portfolio_holdings"))
     print(f"✓ Added {len(holding_rows)} portfolio holding records")
 
 # COMMAND ----------
@@ -184,7 +194,7 @@ for fund in funds:
 
 if flow_rows:
     flow_df = spark.createDataFrame(flow_rows)
-    flow_df.write.mode("append").saveAsTable(f"{SCHEMA}.fact_fund_flows")
+flow_df.write.mode("append").saveAsTable(qname(SCHEMA, "fact_fund_flows"))
     print(f"✓ Added {len(flow_rows)} fund flow records")
 
 # COMMAND ----------
@@ -214,7 +224,7 @@ print("=" * 60)
 # Display newly added funds
 display(spark.sql(f"""
     SELECT fund_id, fund_name, strategy, sector, domicile, manager
-    FROM {SCHEMA}.dim_funds
+    FROM {qname(SCHEMA, 'dim_funds')}
     WHERE fund_id >= 'FUND_{START_ID:06d}'
     ORDER BY fund_id
 """))

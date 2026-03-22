@@ -12,16 +12,27 @@ dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
+
 print(f"Unity Catalog: {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
 
 # Set the catalog
-spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
 print(f"Using catalog: {CATALOG}")
 
 # Create schema
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {qname(CATALOG, SCHEMA)}")
 print(f"Schema {CATALOG}.{SCHEMA} created/verified")
 
 # COMMAND ----------
@@ -29,7 +40,7 @@ print(f"Schema {CATALOG}.{SCHEMA} created/verified")
 # Create analysis_outputs table
 spark.sql(
     f"""
-CREATE TABLE IF NOT EXISTS {SCHEMA}.analysis_outputs (
+CREATE TABLE IF NOT EXISTS {qname(CATALOG, SCHEMA, 'analysis_outputs')} (
     id STRING COMMENT 'Unique analysis ID (UUID)',
     encounter_id STRING COMMENT 'Related encounter ID if applicable',
     analysis_type STRING COMMENT 'Type: readmission_prediction, root_cause_analysis, cost_optimization, etc.',
@@ -71,4 +82,4 @@ print("=" * 60)
 # COMMAND ----------
 
 # Display created tables
-display(spark.sql(f"SHOW TABLES IN {SCHEMA}"))
+display(spark.sql(f"SHOW TABLES IN {qident(SCHEMA)}"))

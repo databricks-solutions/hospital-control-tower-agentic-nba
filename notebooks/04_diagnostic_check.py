@@ -26,6 +26,16 @@ APP_NAME = spark.conf.get("spark.databricks.workflow.parameters.var.app_name", d
 WAREHOUSE_ID = spark.conf.get("spark.databricks.workflow.parameters.var.warehouse_id", dbutils.widgets.get("var.warehouse_id"))
 LLM_ENDPOINT = spark.conf.get("spark.databricks.workflow.parameters.var.llm_model_rag", dbutils.widgets.get("var.llm_model_rag"))
 
+def qident(name: str) -> str:
+    name = str(name)
+    if name.startswith("`") and name.endswith("`"):
+        return name
+    return f"`{name}`"
+
+
+def qname(*parts: str) -> str:
+    return ".".join(qident(part) for part in parts)
+
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
 print(f"App: {APP_NAME}")
@@ -37,12 +47,12 @@ print(f"App: {APP_NAME}")
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"USE CATALOG {qident(CATALOG)}")
 
 tables_to_check = [
-    f"{SCHEMA}.dim_funds",
-    f"{SCHEMA}.analysis_outputs", 
-    f"{SCHEMA}.fund_documents_for_embedding",
+    qname(SCHEMA, "dim_funds"),
+    qname(SCHEMA, "analysis_outputs"), 
+    qname(SCHEMA, "fund_documents_for_embedding"),
 ]
 
 print("Table Existence Check:")
@@ -66,7 +76,7 @@ print("=" * 60)
 
 # Test SELECT on dim_funds
 try:
-    df = spark.sql(f"SELECT * FROM {SCHEMA}.dim_funds LIMIT 1")
+    df = spark.sql(f"SELECT * FROM {qname(SCHEMA, 'dim_funds')} LIMIT 1")
     df.collect()
     print(f"  SELECT on dim_funds: OK")
 except Exception as e:
@@ -74,7 +84,7 @@ except Exception as e:
 
 # Test SELECT on analysis_outputs
 try:
-    df = spark.sql(f"SELECT * FROM {SCHEMA}.analysis_outputs LIMIT 1")
+    df = spark.sql(f"SELECT * FROM {qname(SCHEMA, 'analysis_outputs')} LIMIT 1")
     df.collect()
     print(f"  SELECT on analysis_outputs: OK")
 except Exception as e:
@@ -83,11 +93,11 @@ except Exception as e:
 # Test INSERT on analysis_outputs
 try:
     spark.sql(f"""
-        INSERT INTO {SCHEMA}.analysis_outputs 
+        INSERT INTO {qname(SCHEMA, 'analysis_outputs')} 
         (id, analysis_type, insights, agent_mode)
         VALUES ('test-diagnostic', 'test', 'diagnostic test', 'test')
     """)
-    spark.sql(f"DELETE FROM {SCHEMA}.analysis_outputs WHERE id = 'test-diagnostic'")
+    spark.sql(f"DELETE FROM {qname(SCHEMA, 'analysis_outputs')} WHERE id = 'test-diagnostic'")
     print(f"  INSERT/DELETE on analysis_outputs: OK")
 except Exception as e:
     print(f"  INSERT/DELETE on analysis_outputs: FAILED - {e}")
@@ -103,7 +113,7 @@ from databricks.vector_search.client import VectorSearchClient
 
 dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 ENDPOINT_NAME = dbutils.widgets.get("var.vector_search_endpoint")
-INDEX_NAME = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
+INDEX_NAME = qname(CATALOG, SCHEMA, "fund_documents_vector_index")
 
 print(f"\nVector Search Check:")
 print("=" * 60)
@@ -242,7 +252,7 @@ w = WorkspaceClient()
 try:
     result = w.statement_execution.execute_statement(
         warehouse_id=WAREHOUSE_ID,
-        statement=f"SELECT COUNT(*) as cnt FROM {CATALOG}.{SCHEMA}.dim_funds",
+        statement=f"SELECT COUNT(*) as cnt FROM {qname(CATALOG, SCHEMA, 'dim_funds')}",
         wait_timeout="30s",
     )
     
