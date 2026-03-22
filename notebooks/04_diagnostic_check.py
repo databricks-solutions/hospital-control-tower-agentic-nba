@@ -16,7 +16,7 @@ dbutils.library.restartPython()
 # Configuration -- reads from bundle variables (var.*) when run via DAB jobs
 dbutils.widgets.text("var.catalog", "", "Catalog")
 dbutils.widgets.text("var.schema", "investment_intel", "Schema")
-dbutils.widgets.text("var.app_name", "dev-hospital-control-tower", "App Name")
+dbutils.widgets.text("var.app_name", "dev-investment-intel", "App Name")
 dbutils.widgets.text("var.warehouse_id", "", "Warehouse ID")
 dbutils.widgets.text("var.llm_model_rag", "databricks-claude-sonnet-4-5", "LLM Endpoint")
 

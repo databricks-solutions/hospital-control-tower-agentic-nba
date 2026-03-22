@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Setup Tables for Hospital Control Tower
+# MAGIC # Setup Tables for Investment Intelligence Platform
 # MAGIC
 # MAGIC Creates the analysis_outputs and poetry tables in Unity Catalog.
 
@@ -8,7 +8,7 @@
 
 # Configuration
 dbutils.widgets.text("var.catalog", "", "Catalog")
-dbutils.widgets.text("var.schema", "med_logistics_nba", "Schema")
+dbutils.widgets.text("var.schema", "investment_intel", "Schema")
 CATALOG = dbutils.widgets.get("var.catalog")
 SCHEMA = dbutils.widgets.get("var.schema")
 
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS {SCHEMA}.analysis_outputs (
     engineer_notes STRING COMMENT 'Reviewer notes'
 )
 USING DELTA
-COMMENT 'Agent analysis outputs for medical logistics next best action'
+COMMENT 'Agent analysis outputs for investment intelligence platform'
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 """
 )

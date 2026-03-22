@@ -8,20 +8,13 @@ sync:
 
 include:
   - variables.yml
-  - resources/*.yml
+  - resources/jobs.yml
+  - resources/apps.yml
 
 targets:
   dev:
     mode: development
     default: true
-    workspace:
-      host: https://fe-vm-vdm-classic-q6xfh3.cloud.databricks.com/ # workspace URL
-    variables:
-      catalog: eswanson_demo # Unity Catalog name
-      schema: investment_intel
-      warehouse_id: 3abb59fcfb739e0d # SQL Warehouse ID
-      vector_search_endpoint: eswanson_demo_investment_intel_vector_endpoint # Vector Search endpoint name
-      node_type_id: i3.xlarge
 
   prod:
     mode: production

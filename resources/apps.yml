@@ -19,8 +19,3 @@ resources:
             securable_type: TABLE
             securable_full_name: ${var.catalog}.${var.schema}.fund_documents_vector_index
             permission: SELECT
-        - name: ips_index
-          uc_securable:
-            securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.investment_policy_vector_index
-            permission: SELECT

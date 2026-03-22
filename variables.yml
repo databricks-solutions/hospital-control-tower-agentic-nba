@@ -1,36 +1,36 @@
 variables:
   workspace_host:
-    description: "Databricks workspace host URL"
+    description: "(prod only) Databricks workspace host URL"
     default: ""
   deploying_user:
-    description: "User deploying the bundle"
+    description: "(prod only) User deploying the bundle"
     default: ""
   root_path:
-    description: "Root path for production deployment"
+    description: "(prod only) Root path for production deployment"
     default: ""
   catalog:
-    description: "Unity Catalog name"
+    description: "(REQUIRED) Unity Catalog name"
     default: ""
   schema:
     description: "Schema name"
     default: "investment_intel"
   warehouse_id:
-    description: "SQL Warehouse ID"
+    description: "(REQUIRED) SQL Warehouse ID"
     default: ""
   node_type_id:
-    description: "Node type for job clusters"
+    description: "Node type for job clusters (default: AWS i3.xlarge; setup.sh adjusts for Azure)"
     default: "i3.xlarge"
   lakebase_instance:
-    description: "Lakebase instance name"
+    description: "(optional) Lakebase instance name"
     default: ""
   lakebase_host:
-    description: "Lakebase PostgreSQL host (get from UI: Data > Databases > instance > Connection details)"
+    description: "(optional) Lakebase PostgreSQL host (get from UI: Data > Databases > instance > Connection details)"
     default: ""
   lakebase_database:
-    description: "Lakebase database name"
+    description: "(optional) Lakebase database name"
     default: "postgres"
   vector_search_endpoint:
-    description: "Vector Search endpoint name"
+    description: "(REQUIRED) Vector Search endpoint name"
     default: ""
   heartbeat_interval_seconds:
     description: "Interval for agent heartbeat in seconds"
