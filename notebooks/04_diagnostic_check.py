@@ -113,7 +113,7 @@ from databricks.vector_search.client import VectorSearchClient
 
 dbutils.widgets.text("var.vector_search_endpoint", "", "Vector Search Endpoint")
 ENDPOINT_NAME = dbutils.widgets.get("var.vector_search_endpoint")
-INDEX_NAME = qname(CATALOG, SCHEMA, "fund_documents_vector_index")
+INDEX_NAME = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
 
 print(f"\nVector Search Check:")
 print("=" * 60)

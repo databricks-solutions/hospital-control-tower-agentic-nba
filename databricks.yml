@@ -4,7 +4,8 @@ bundle:
 
 sync:
   include:
-    - app/app.yaml
+    - app/**/*
+    - notebooks/**/*
 
 include:
   - variables.yml
@@ -17,7 +18,7 @@ targets:
     workspace:
       host: https://fe-vm-hls-amer.cloud.databricks.com/ # workspace URL
     variables:
-      catalog: hls-fe-onboarding # Unity Catalog name, you need to have manage permission to this catalog
+      catalog: hls_amer_catalog # Unity Catalog name; must be compatible with Vector Search resource names
       schema: investment_intel
       warehouse_id: 68d156b1d8b5502b # SQL Warehouse ID
       vector_search_endpoint: yyang_demo_investment_intel_vector_endpoint # Vector Search endpoint name

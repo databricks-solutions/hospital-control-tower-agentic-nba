@@ -31,16 +31,20 @@ def qname(*parts: str) -> str:
     return ".".join(qident(part) for part in parts)
 
 
-IPS_VECTOR_INDEX = qname(CATALOG, SCHEMA, "investment_policy_vector_index")
-IPS_DOCS_TABLE = qname(CATALOG, SCHEMA, "investment_policy_docs")
-IPS_PARSED_TABLE = qname(CATALOG, SCHEMA, "investment_policy_parsed")
-IPS_CHUNKS_TABLE = qname(CATALOG, SCHEMA, "investment_policy_chunks")
+IPS_VECTOR_INDEX_SQL = qname(CATALOG, SCHEMA, "investment_policy_vector_index")
+IPS_DOCS_TABLE_SQL = qname(CATALOG, SCHEMA, "investment_policy_docs")
+IPS_PARSED_TABLE_SQL = qname(CATALOG, SCHEMA, "investment_policy_parsed")
+IPS_CHUNKS_TABLE_SQL = qname(CATALOG, SCHEMA, "investment_policy_chunks")
+IPS_VECTOR_INDEX_API = f"{CATALOG}.{SCHEMA}.investment_policy_vector_index"
+IPS_DOCS_TABLE_API = f"{CATALOG}.{SCHEMA}.investment_policy_docs"
+IPS_PARSED_TABLE_API = f"{CATALOG}.{SCHEMA}.investment_policy_parsed"
+IPS_CHUNKS_TABLE_API = f"{CATALOG}.{SCHEMA}.investment_policy_chunks"
 
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
 print(f"Vector Endpoint: {VECTOR_ENDPOINT}")
-print(f"Investment Policy Vector Index: {IPS_VECTOR_INDEX}")
-print(f"IPS Docs Table: {IPS_DOCS_TABLE}")
+print(f"Investment Policy Vector Index: {IPS_VECTOR_INDEX_API}")
+print(f"IPS Docs Table: {IPS_DOCS_TABLE_API}")
 
 # COMMAND ----------
 
@@ -613,7 +617,7 @@ All investments in the impact sleeve (target: 10-15% of NAV) must report:
 
 # Build docs table from volume
 spark.sql(f"""
-CREATE OR REPLACE TABLE {IPS_DOCS_TABLE} AS
+CREATE OR REPLACE TABLE {IPS_DOCS_TABLE_SQL} AS
 SELECT 
     path,
     decode(content, 'UTF-8') as content,
@@ -623,9 +627,9 @@ WHERE content IS NOT NULL
 """)
 
 try:
-    count = spark.sql(f"SELECT COUNT(*) FROM {IPS_DOCS_TABLE}").collect()[0][0]
+    count = spark.sql(f"SELECT COUNT(*) FROM {IPS_DOCS_TABLE_SQL}").collect()[0][0]
     print(f"IPS documents table created with {count} documents")
-    display(spark.sql(f"SELECT filename, LENGTH(content) as content_length FROM {IPS_DOCS_TABLE} LIMIT 5"))
+    display(spark.sql(f"SELECT filename, LENGTH(content) as content_length FROM {IPS_DOCS_TABLE_SQL} LIMIT 5"))
 except Exception as e:
     print(f"ERROR: Could not create IPS docs table: {e}")
     print(f"Ensure IPS files exist in {IPS_VOLUME_PATH}")
@@ -641,17 +645,17 @@ except Exception as e:
 
 # IPS files are already text - use content directly (no ai_parse_document needed)
 spark.sql(f"""
-CREATE OR REPLACE TABLE {IPS_PARSED_TABLE} AS
+CREATE OR REPLACE TABLE {IPS_PARSED_TABLE_SQL} AS
 SELECT 
     path as source_path,
     filename,
     content as parsed_text,
     current_timestamp() as parsed_at
-FROM {IPS_DOCS_TABLE}
+FROM {IPS_DOCS_TABLE_SQL}
 WHERE content IS NOT NULL AND LENGTH(content) > 0
 """)
 
-parsed_count = spark.sql(f"SELECT COUNT(*) FROM {IPS_PARSED_TABLE}").collect()[0][0]
+parsed_count = spark.sql(f"SELECT COUNT(*) FROM {IPS_PARSED_TABLE_SQL}").collect()[0][0]
 print(f"Prepared {parsed_count} investment policy documents for chunking")
 
 # COMMAND ----------
@@ -662,7 +666,7 @@ SELECT
     filename, 
     LENGTH(parsed_text) as text_length,
     LEFT(parsed_text, 500) as text_preview
-FROM {IPS_PARSED_TABLE}
+FROM {IPS_PARSED_TABLE_SQL}
 LIMIT 5
 """))
 
@@ -676,7 +680,7 @@ LIMIT 5
 # Create chunks table with proper chunking strategy
 # Using paragraph-based splitting with overlap
 spark.sql(f"""
-CREATE OR REPLACE TABLE {IPS_CHUNKS_TABLE}
+CREATE OR REPLACE TABLE {IPS_CHUNKS_TABLE_SQL}
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 AS
 WITH chunks_raw AS (
@@ -693,7 +697,7 @@ WITH chunks_raw AS (
                 x -> TRIM(x)
             )
         ) as chunk_text
-    FROM {IPS_PARSED_TABLE}
+FROM {IPS_PARSED_TABLE_SQL}
     WHERE parsed_text IS NOT NULL AND LENGTH(parsed_text) > 100
 ),
 chunks_with_id AS (
@@ -724,7 +728,7 @@ SELECT
 FROM chunks_with_id
 """)
 
-chunk_count = spark.sql(f"SELECT COUNT(*) FROM {IPS_CHUNKS_TABLE}").collect()[0][0]
+chunk_count = spark.sql(f"SELECT COUNT(*) FROM {IPS_CHUNKS_TABLE_SQL}").collect()[0][0]
 print(f"Created {chunk_count} chunks from investment policy documents")
 
 # COMMAND ----------
@@ -737,7 +741,7 @@ SELECT
     AVG(chunk_length) as avg_chunk_length,
     MIN(chunk_length) as min_length,
     MAX(chunk_length) as max_length
-FROM {IPS_CHUNKS_TABLE}
+FROM {IPS_CHUNKS_TABLE_SQL}
 GROUP BY filename
 ORDER BY chunk_count DESC
 """))
@@ -747,7 +751,7 @@ ORDER BY chunk_count DESC
 # Sample chunks
 display(spark.sql(f"""
 SELECT chunk_id, filename, section_title, chunk_length, LEFT(chunk_text, 300) as preview
-FROM {IPS_CHUNKS_TABLE}
+FROM {IPS_CHUNKS_TABLE_SQL}
 LIMIT 10
 """))
 
@@ -781,37 +785,37 @@ from databricks.vector_search.utils import BadRequest
 
 index_exists = False
 try:
-    existing_index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=IPS_VECTOR_INDEX)
+    existing_index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=IPS_VECTOR_INDEX_API)
     index_exists = True
-    print(f"Index {IPS_VECTOR_INDEX} already exists")
+    print(f"Index {IPS_VECTOR_INDEX_API} already exists")
 except Exception as e:
     print(f"Index does not exist: {e}")
 
 if index_exists:
-    print(f"Syncing existing index {IPS_VECTOR_INDEX}...")
+    print(f"Syncing existing index {IPS_VECTOR_INDEX_API}...")
     try:
-        vsc.get_index(VECTOR_ENDPOINT, IPS_VECTOR_INDEX).sync()
+        vsc.get_index(VECTOR_ENDPOINT, IPS_VECTOR_INDEX_API).sync()
         print("Sync triggered successfully")
     except Exception as e:
         print(f"Sync status: {e}")
 else:
-    print(f"Creating investment policy vector index {IPS_VECTOR_INDEX}...")
+    print(f"Creating investment policy vector index {IPS_VECTOR_INDEX_API}...")
     try:
         vsc.create_delta_sync_index(
             endpoint_name=VECTOR_ENDPOINT,
-            index_name=IPS_VECTOR_INDEX,
-            source_table_name=IPS_CHUNKS_TABLE,
+            index_name=IPS_VECTOR_INDEX_API,
+            source_table_name=IPS_CHUNKS_TABLE_API,
             pipeline_type="TRIGGERED",
             primary_key="chunk_id",
             embedding_source_column="chunk_text",
             embedding_model_endpoint_name="databricks-gte-large-en"
         )
-        print(f"Index {IPS_VECTOR_INDEX} created successfully")
+        print(f"Index {IPS_VECTOR_INDEX_API} created successfully")
     except BadRequest as e:
         if "already exists" in str(e):
             print(f"Index already exists (UC entity), syncing instead...")
             try:
-                vsc.get_index(VECTOR_ENDPOINT, IPS_VECTOR_INDEX).sync()
+                vsc.get_index(VECTOR_ENDPOINT, IPS_VECTOR_INDEX_API).sync()
                 print("Sync triggered successfully")
             except Exception as sync_e:
                 print(f"Sync status: {sync_e}")
@@ -831,7 +835,7 @@ time.sleep(10)
 
 # Test search
 try:
-    index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=IPS_VECTOR_INDEX)
+    index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=IPS_VECTOR_INDEX_API)
     results = index.similarity_search(
         query_text="asset allocation guidelines and rebalancing policy",
         columns=["chunk_id", "chunk_text", "source_doc", "section_title"],
@@ -857,10 +861,10 @@ except Exception as e:
 print("=" * 60)
 print("INVESTMENT POLICY VECTOR SEARCH SETUP COMPLETE")
 print("=" * 60)
-print(f"Source Docs: {IPS_DOCS_TABLE}")
-print(f"Parsed Table: {IPS_PARSED_TABLE}")
-print(f"Chunks Table: {IPS_CHUNKS_TABLE}")
-print(f"Vector Index: {IPS_VECTOR_INDEX}")
+print(f"Source Docs: {IPS_DOCS_TABLE_API}")
+print(f"Parsed Table: {IPS_PARSED_TABLE_API}")
+print(f"Chunks Table: {IPS_CHUNKS_TABLE_API}")
+print(f"Vector Index: {IPS_VECTOR_INDEX_API}")
 print(f"Vector Endpoint: {VECTOR_ENDPOINT}")
 print("")
 print(f"Total chunks indexed: {chunk_count}")

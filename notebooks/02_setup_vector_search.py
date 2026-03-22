@@ -30,14 +30,16 @@ def qname(*parts: str) -> str:
     return ".".join(qident(part) for part in parts)
 
 
-VECTOR_INDEX = qname(CATALOG, SCHEMA, "fund_documents_vector_index")
-SOURCE_TABLE = qname(CATALOG, SCHEMA, "fund_documents_for_embedding")
+VECTOR_INDEX_SQL = qname(CATALOG, SCHEMA, "fund_documents_vector_index")
+SOURCE_TABLE_SQL = qname(CATALOG, SCHEMA, "fund_documents_for_embedding")
+VECTOR_INDEX_API = f"{CATALOG}.{SCHEMA}.fund_documents_vector_index"
+SOURCE_TABLE_API = f"{CATALOG}.{SCHEMA}.fund_documents_for_embedding"
 
 print(f"Catalog: {CATALOG}")
 print(f"Schema: {SCHEMA}")
 print(f"Vector Endpoint: {VECTOR_ENDPOINT}")
-print(f"Vector Index: {VECTOR_INDEX}")
-print(f"Source Table: {SOURCE_TABLE}")
+print(f"Vector Index: {VECTOR_INDEX_API}")
+print(f"Source Table: {SOURCE_TABLE_API}")
 
 # COMMAND ----------
 
@@ -101,7 +103,7 @@ except Exception as e:
 
 # Create enriched embedding table with fund document text
 spark.sql(f"""
-CREATE OR REPLACE TABLE {SOURCE_TABLE}
+CREATE OR REPLACE TABLE {SOURCE_TABLE_SQL}
 TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')
 AS
 SELECT 
@@ -126,13 +128,13 @@ SELECT
 FROM {qname(CATALOG, SCHEMA, 'dim_funds')} f
 """)
 
-count = spark.sql(f"SELECT COUNT(*) FROM {SOURCE_TABLE}").collect()[0][0]
-print(f"Created {SOURCE_TABLE} with {count} rows")
+count = spark.sql(f"SELECT COUNT(*) FROM {SOURCE_TABLE_SQL}").collect()[0][0]
+print(f"Created {SOURCE_TABLE_SQL} with {count} rows")
 
 # COMMAND ----------
 
 # Display sample
-display(spark.sql(f"SELECT fund_id, fund_name, manager_name, strategy, status, LEFT(text_content, 200) as text_preview FROM {SOURCE_TABLE} LIMIT 5"))
+display(spark.sql(f"SELECT fund_id, fund_name, manager_name, strategy, status, LEFT(text_content, 200) as text_preview FROM {SOURCE_TABLE_SQL} LIMIT 5"))
 
 # COMMAND ----------
 
@@ -146,37 +148,37 @@ from databricks.vector_search.utils import BadRequest
 # Try to get existing index first
 index_exists = False
 try:
-    existing_index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX)
+    existing_index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX_API)
     index_exists = True
-    print(f"Index {VECTOR_INDEX} already exists")
+    print(f"Index {VECTOR_INDEX_API} already exists")
 except Exception as e:
     print(f"Index does not exist or cannot be accessed: {e}")
 
 if index_exists:
-    print(f"Syncing existing index {VECTOR_INDEX}...")
+    print(f"Syncing existing index {VECTOR_INDEX_API}...")
     try:
-        vsc.get_index(VECTOR_ENDPOINT, VECTOR_INDEX).sync()
+        vsc.get_index(VECTOR_ENDPOINT, VECTOR_INDEX_API).sync()
         print("Sync triggered successfully")
     except Exception as e:
         print(f"Sync may already be in progress or not needed: {e}")
 else:
-    print(f"Creating index {VECTOR_INDEX}...")
+    print(f"Creating index {VECTOR_INDEX_API}...")
     try:
         vsc.create_delta_sync_index(
             endpoint_name=VECTOR_ENDPOINT,
-            index_name=VECTOR_INDEX,
-            source_table_name=SOURCE_TABLE,
+            index_name=VECTOR_INDEX_API,
+            source_table_name=SOURCE_TABLE_API,
             pipeline_type="TRIGGERED",
             primary_key="fund_id",
             embedding_source_column="text_content",
             embedding_model_endpoint_name="databricks-gte-large-en"
         )
-        print(f"Index {VECTOR_INDEX} created")
+        print(f"Index {VECTOR_INDEX_API} created")
     except BadRequest as e:
         if "already exists" in str(e):
             print(f"Index already exists (UC entity), syncing instead...")
             try:
-                vsc.get_index(VECTOR_ENDPOINT, VECTOR_INDEX).sync()
+                vsc.get_index(VECTOR_ENDPOINT, VECTOR_INDEX_API).sync()
                 print("Sync triggered successfully")
             except Exception as sync_e:
                 print(f"Sync status: {sync_e}")
@@ -196,7 +198,7 @@ time.sleep(5)
 
 # Test search
 try:
-    index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX)
+    index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX_API)
     results = index.similarity_search(
         query_text="Private Credit funds with high AUM",
         columns=["fund_id", "fund_name", "manager_name", "strategy", "status"],
@@ -214,8 +216,8 @@ print("=" * 60)
 print("VECTOR SEARCH SETUP COMPLETE")
 print("=" * 60)
 print(f"Endpoint: {VECTOR_ENDPOINT}")
-print(f"Index: {VECTOR_INDEX}")
-print(f"Source: {SOURCE_TABLE}")
+print(f"Index: {VECTOR_INDEX_API}")
+print(f"Source: {SOURCE_TABLE_API}")
 print("")
 print("The index may take a few minutes to fully sync.")
 print("Run 03_grant_permissions.py next.")
