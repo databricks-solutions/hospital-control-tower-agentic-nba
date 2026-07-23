@@ -3,7 +3,6 @@ import asyncio
 import logging
 import queue
 import threading
-import uuid
 from typing import Dict, List, Optional, Annotated
 from operator import add
 
@@ -11,7 +10,6 @@ from databricks_langchain import ChatDatabricks
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
 from typing_extensions import TypedDict
 
 from .config import (
@@ -368,9 +366,14 @@ def retrieval_node(state: DeepAnalysisState) -> dict:
         agent = create_react_agent(LLM_MAIN, retrieval_tools)
 
         prompt = f"Execute this data-gathering plan:\n\n{state.get('plan', '')}\n\nUser question: {state['user_query']}"
-        result = agent.invoke({
-            "messages": [SystemMessage(content=RETRIEVAL_PROMPT), HumanMessage(content=prompt)]
-        })
+        # Raise the ReAct recursion limit above the default 25 supersteps (~12 tool calls).
+        # The retrieval agent occasionally makes several rounds of searches; the default
+        # limit intermittently trips and returns an error instead of gathered evidence.
+        # 40 (~20 tool calls) gives headroom without masking a genuine infinite loop.
+        result = agent.invoke(
+            {"messages": [SystemMessage(content=RETRIEVAL_PROMPT), HumanMessage(content=prompt)]},
+            config={"recursion_limit": 40},
+        )
 
         evidence = ""
         tools_used = []
@@ -479,7 +482,10 @@ def route_supervisor(state: DeepAnalysisState) -> str:
 
 # ---- Graph builder ----
 
-_checkpointer = MemorySaver()
+# No checkpointer: each request is a one-shot invocation and conversation history is
+# already folded into the query by _build_query, so the graph never needs to resume a
+# thread. A module-level in-memory checkpointer would only accumulate per-request state
+# forever in the long-lived worker process (unbounded memory growth).
 
 
 def build_deep_graph():
@@ -498,7 +504,7 @@ def build_deep_graph():
     graph.add_edge("analyst", "supervisor")
     graph.add_edge("clarify", "respond")
     graph.add_edge("respond", END)
-    return graph.compile(checkpointer=_checkpointer)
+    return graph.compile()
 
 
 DEEP_GRAPH = build_deep_graph()
@@ -515,8 +521,9 @@ def _build_query(message: str, history: Optional[List[Dict]] = None) -> str:
     return message
 
 
-def _run_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = None) -> Dict:
-    initial_state = {
+def _initial_state(query: str, prereq_status: str) -> Dict:
+    """Fresh graph state for one deep-analysis request (shared by sync + streaming paths)."""
+    return {
         "messages": [],
         "user_query": query,
         "plan": "",
@@ -529,25 +536,27 @@ def _run_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = N
         "iteration": [],
         "tool_calls_made": [],
     }
-    # Fresh thread per request by default. The shared MemorySaver persists state
-    # per thread_id, and `iteration`/`messages` use additive reducers — reusing a
-    # constant "default" thread would accumulate a prior request's iteration count
-    # (short-circuiting the supervisor) and leak its messages. History is already
-    # folded into `query` via _build_query, so we never need to resume a thread.
-    config = {"configurable": {"thread_id": thread_id or uuid.uuid4().hex}}
-    result = DEEP_GRAPH.invoke(initial_state, config=config)
 
+
+def _extract_response(state: Dict) -> str:
+    """Pick the longest AI message text, falling back to analysis_result."""
     response_content = ""
-    for msg in result.get("messages", []):
+    for msg in state.get("messages", []):
         if isinstance(msg, AIMessage):
             text = content_text(msg)
             if text and len(text) > len(response_content):
                 response_content = text
     if not response_content:
-        response_content = result.get("analysis_result", "Analysis complete but no output was generated.")
+        response_content = state.get("analysis_result", "Analysis complete but no output was generated.")
+    return response_content
 
+
+def _run_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = None) -> Dict:
+    # thread_id is accepted for API compatibility but unused: the graph has no
+    # checkpointer, so each invoke is independent (no cross-request state).
+    result = DEEP_GRAPH.invoke(_initial_state(query, prereq_status))
     tool_calls = list(set(result.get("tool_calls_made", [])))
-    return {"response": response_content, "tool_calls": tool_calls, "mode": "deep"}
+    return {"response": _extract_response(result), "tool_calls": tool_calls, "mode": "deep"}
 
 
 # ===========================================================================
@@ -555,46 +564,30 @@ def _run_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = N
 # ===========================================================================
 
 async def _astream_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = None):
-    """Async generator that yields progress events and final result from the deep graph."""
-    initial_state = {
-        "messages": [],
-        "user_query": query,
-        "plan": "",
-        "retrieved_evidence": "",
-        "prerequisite_status": prereq_status,
-        "analysis_result": "",
-        "needs_clarification": False,
-        "clarification_question": "",
-        "next_step": "",
-        "iteration": [],
-        "tool_calls_made": [],
-    }
-    # Fresh thread per request (see _run_deep_graph for why "default" is unsafe).
-    config = {"configurable": {"thread_id": thread_id or uuid.uuid4().hex}}
-    final_state = {}
-    # Build the routing trace from the streamed node events directly. _local.routing_trace
-    # is unreliable here because astream may run sync nodes on a worker thread where the
-    # thread-local isn't set, so we don't depend on it for the trace.
-    routing_trace = []
-    async for event in DEEP_GRAPH.astream(initial_state, config=config, stream_mode="updates"):
-        for node_name, node_output in event.items():
-            yield {"stage": node_name, "message": f"Completed {node_name}"}
-            routing_trace.append({"agent": node_name, "action": node_name,
-                                  "message": f"Completed {node_name}"})
-            final_state.update(node_output)
+    """Async generator that yields progress events and final result from the deep graph.
 
-    response_content = ""
-    for msg in final_state.get("messages", []):
-        if isinstance(msg, AIMessage):
-            text = content_text(msg)
-            if text and len(text) > len(response_content):
-                response_content = text
-    if not response_content:
-        response_content = final_state.get("analysis_result", "Analysis complete but no output was generated.")
+    Streams two modes together: "updates" gives per-node deltas (used only for node
+    names -> progress events + routing trace), and "values" gives the full
+    reducer-applied state snapshot after each step. We keep the latest "values"
+    snapshot as the authoritative final_state so additive channels (tool_calls_made,
+    messages) reflect the accumulated result rather than a single node's delta.
+    """
+    final_state = {}
+    routing_trace = []
+    async for mode, chunk in DEEP_GRAPH.astream(
+        _initial_state(query, prereq_status), stream_mode=["updates", "values"]
+    ):
+        if mode == "updates":
+            for node_name in chunk:
+                yield {"stage": node_name, "message": f"Completed {node_name}"}
+                routing_trace.append({"agent": node_name, "action": node_name,
+                                      "message": f"Completed {node_name}"})
+        elif mode == "values":
+            final_state = chunk
 
     yield {
         "stage": "done",
-        "response": response_content,
+        "response": _extract_response(final_state),
         "tool_calls": list(set(final_state.get("tool_calls_made", []))),
         "routing_trace": routing_trace,
     }
@@ -643,16 +636,10 @@ def invoke_deep_agent_streaming(message: str, history: Optional[List[Dict]] = No
             loop = asyncio.new_event_loop()
             try:
                 async def _consume():
-                    last_event = None
                     async for event in _astream_deep_graph(query, prereq_status, thread_id=thread_id):
                         q.put(event)
-                        last_event = event
-                    return last_event
 
-                last = loop.run_until_complete(_consume())
-                if last and last.get("stage") != "done":
-                    q.put({"stage": "done", "response": "Analysis completed.", "tool_calls": [],
-                           "routing_trace": list(_local.routing_trace)})
+                loop.run_until_complete(_consume())
             finally:
                 loop.close()
         except Exception as e:
