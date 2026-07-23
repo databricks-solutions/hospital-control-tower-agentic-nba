@@ -1,5 +1,5 @@
 """Agent module for Hospital Control Tower."""
-from .graph import invoke_agent, get_llm
+from .graph import invoke_agent, get_llm, invoke_deep_agent
 from .autonomous import (
     get_autonomous,
     start_autonomous,
@@ -23,6 +23,7 @@ from .tools import (
 
 __all__ = [
     "invoke_agent",
+    "invoke_deep_agent",
     "get_llm",
     "get_autonomous",
     "start_autonomous",

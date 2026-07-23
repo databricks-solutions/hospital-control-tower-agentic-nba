@@ -9,13 +9,13 @@ variables:
     description: "(prod only) Root path for production deployment"
     default: ""
   catalog:
-    description: "(REQUIRED) Unity Catalog name"
+    description: "(REQUIRED) Unity Catalog name — set via BUNDLE_VAR_catalog in .databricks-env.sh"
     default: ""
   schema:
     description: "Schema name"
     default: "med_logistics_nba"
   warehouse_id:
-    description: "(REQUIRED) SQL Warehouse ID"
+    description: "(REQUIRED) SQL Warehouse ID — set via BUNDLE_VAR_warehouse_id in .databricks-env.sh"
     default: ""
   node_type_id:
     description: "Node type for job clusters (default: AWS i3.xlarge; setup.sh adjusts for Azure)"
@@ -30,14 +30,14 @@ variables:
     description: "(optional) Lakebase database name"
     default: "postgres"
   vector_search_endpoint:
-    description: "(REQUIRED) Vector Search endpoint name"
+    description: "(REQUIRED) Vector Search endpoint name — set via BUNDLE_VAR_vector_search_endpoint in .databricks-env.sh"
     default: ""
   heartbeat_interval_seconds:
     description: "Interval for agent heartbeat in seconds"
     default: "60"
   llm_model_orchestrator:
-    description: "LLM for orchestrator mode"
+    description: "LLM for fast intent routing / supervisor (orchestrator mode)"
     default: "databricks-gpt-oss-120b"
   llm_model_rag:
-    description: "LLM for RAG agent mode"
+    description: "LLM for RAG / analyst (high-quality analysis)"
     default: "databricks-claude-sonnet-4-5"

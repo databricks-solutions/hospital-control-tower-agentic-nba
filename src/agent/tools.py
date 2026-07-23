@@ -1,4 +1,7 @@
-"""Agent tools for SQL execution, vector search, and analysis output."""
+"""Agent tools for SQL execution, vector search, and analysis output.
+
+NOTE: This is the notebook-accessible copy. The authoritative version is app/agent/tools.py.
+"""
 import os
 import json
 import uuid
@@ -65,16 +68,16 @@ def search_encounters(query: str, num_results: int = 5) -> str:
     """Search patient encounters using semantic similarity."""
     num_results = min(max(num_results, 1), 20)
     try:
-        from databricks.vector_search.client import VectorSearchClient
-        vsc = VectorSearchClient()
-        index = vsc.get_index(endpoint_name=VECTOR_ENDPOINT, index_name=VECTOR_INDEX)
-        results = index.similarity_search(
+        w = get_workspace_client()
+        resp = w.vector_search_indexes.query_index(
+            index_name=VECTOR_INDEX,
             query_text=query,
             columns=["encounter_id", "text_content", "hospital", "department", "los_days", "is_readmission"],
             num_results=num_results,
         )
+        data_array = resp.result.data_array if resp.result else []
         matches = []
-        for row in results.get("result", {}).get("data_array", []):
+        for row in (data_array or []):
             if len(row) >= 2:
                 matches.append({
                     "score": row[0] if isinstance(row[0], (int, float)) else None,
@@ -95,27 +98,31 @@ def write_analysis(analysis_type: str, insights: str, recommendations: Optional[
                    encounter_id: Optional[str] = None, agent_mode: str = "rag") -> str:
     """Write analysis results to the analysis_outputs table."""
     try:
+        from databricks.sdk.service.sql import StatementParameterListItem
         record_id = str(uuid.uuid4())
         created_at = datetime.utcnow().isoformat()
-        def escape(s):
-            return s.replace("'", "''") if s else None
-        insights_escaped = escape(insights)
-        reco_escaped = escape(recommendations) if recommendations else None
-        enc_escaped = escape(encounter_id) if encounter_id else None
-        reco_value = f"'{reco_escaped}'" if reco_escaped else "NULL"
-        enc_value = f"'{enc_escaped}'" if enc_escaped else "NULL"
-
+        w = get_workspace_client()
         insert_sql = f"""
         INSERT INTO {ANALYSIS_TABLE}
         (id, encounter_id, analysis_type, insights, recommendations, created_at, agent_mode, metadata)
-        VALUES ('{record_id}', {enc_value}, '{escape(analysis_type)}', '{insights_escaped}',
-                {reco_value}, '{created_at}', '{escape(agent_mode)}', NULL)
+        VALUES (:p_id, :p_encounter_id, :p_analysis_type, :p_insights,
+                :p_recommendations, :p_created_at, :p_agent_mode, NULL)
         """
-        w = get_workspace_client()
+        params = [
+            StatementParameterListItem(name="p_id", value=record_id),
+            StatementParameterListItem(name="p_encounter_id", value=encounter_id),
+            StatementParameterListItem(name="p_analysis_type", value=analysis_type),
+            StatementParameterListItem(name="p_insights", value=insights),
+            StatementParameterListItem(name="p_recommendations", value=recommendations),
+            StatementParameterListItem(name="p_created_at", value=created_at),
+            StatementParameterListItem(name="p_agent_mode", value=agent_mode),
+        ]
         result = w.statement_execution.execute_statement(
-            warehouse_id=WAREHOUSE_ID, statement=insert_sql, wait_timeout="30s",
+            warehouse_id=WAREHOUSE_ID, statement=insert_sql,
+            parameters=params, wait_timeout="30s",
         )
-        if result.status.state.value in ["SUCCEEDED", "CLOSED"]:
+        state = result.status.state.value if result.status and result.status.state else "UNKNOWN"
+        if state in ("SUCCEEDED", "CLOSED"):
             return json.dumps({"success": True, "id": record_id, "analysis_type": analysis_type, "message": "Analysis saved successfully"})
         else:
             return json.dumps({"error": f"Write failed: {result.status.error}"})

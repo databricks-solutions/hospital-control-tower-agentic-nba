@@ -1,19 +1,22 @@
 """Multi-agent deep analysis graph + quick query via LangGraph."""
+import asyncio
 import logging
 import queue
 import threading
+import uuid
 from typing import Dict, List, Optional, Annotated
 from operator import add
 
 from databricks_langchain import ChatDatabricks
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
 from typing_extensions import TypedDict
 
 from .config import (
-    CATALOG, SCHEMA, LLM_MODEL, MLFLOW_EXPERIMENT,
-    ANALYSIS_TABLE, MAX_SUPERVISOR_ITERATIONS,
+    CATALOG, SCHEMA, LLM_MODEL, LLM_ORCHESTRATOR, LLM_ANALYST,
+    MLFLOW_EXPERIMENT, ANALYSIS_TABLE, MAX_SUPERVISOR_ITERATIONS,
 )
 from .tools import (
     QUICK_TOOLS,
@@ -29,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 MLFLOW_ENABLED = False
 MLFLOW_EXPERIMENT_ID = None
+MLFLOW_DISABLED_REASON = None
 try:
     import mlflow
     mlflow.set_tracking_uri("databricks")
@@ -37,9 +41,18 @@ try:
     mlflow.langchain.autolog(silent=True)
     trace = mlflow.trace
     MLFLOW_ENABLED = True
-    logger.info(f"MLflow tracing enabled, experiment: {MLFLOW_EXPERIMENT} (id={MLFLOW_EXPERIMENT_ID})")
+    logger.info(f"MLflow tracing ENABLED — experiment: {MLFLOW_EXPERIMENT} (id={MLFLOW_EXPERIMENT_ID})")
 except Exception as e:
-    logger.warning(f"MLflow tracing not available: {e}")
+    # Loud, not silent: a common cause is the app service principal lacking write
+    # access to the experiment path. Surface it clearly so the demo isn't running
+    # with tracing quietly off. Exposed via /api/config as mlflow_disabled_reason.
+    MLFLOW_DISABLED_REASON = f"{type(e).__name__}: {e}"
+    logger.error("=" * 60)
+    logger.error(f"MLflow tracing DISABLED — traces will NOT be recorded.")
+    logger.error(f"  experiment: {MLFLOW_EXPERIMENT}")
+    logger.error(f"  reason:     {MLFLOW_DISABLED_REASON}")
+    logger.error("  Fix: ensure the app service principal can write to the experiment path.")
+    logger.error("=" * 60)
     def trace(**kwargs):
         """No-op decorator when mlflow is unavailable."""
         return lambda fn: fn
@@ -66,13 +79,45 @@ def _emit_progress(stage: str, message: str, agent: str = ""):
         q.put({"stage": stage, "message": message})
 
 
-_cached_llm = None
+# ---------------------------------------------------------------------------
+# Module-level LLM instances (one per role)
+# ---------------------------------------------------------------------------
+
+LLM_MAIN = ChatDatabricks(endpoint=LLM_MODEL)
+LLM_SUPERVISOR = ChatDatabricks(endpoint=LLM_ORCHESTRATOR, temperature=0)
+LLM_ANALYST_INSTANCE = ChatDatabricks(endpoint=LLM_ANALYST)
+
+
+def content_text(message) -> str:
+    """Return an AI message's content as plain text.
+
+    Reasoning models (e.g. databricks-gpt-oss-120b, used for the supervisor) return
+    `content` as a list of parts like [{"type": "reasoning", ...}, {"type": "text",
+    "text": "PLAN"}] rather than a string. Concatenate the text parts so downstream
+    code can treat the result as a normal string. Falls back to str() for anything
+    unexpected. Accepts a message object or a raw content value.
+    """
+    content = getattr(message, "content", message)
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                # text parts carry "text"; skip reasoning/other part types
+                if item.get("type") in (None, "text") and item.get("text"):
+                    parts.append(item["text"])
+        return "".join(parts)
+    return str(content)
+
 
 def get_llm():
-    global _cached_llm
-    if _cached_llm is None:
-        _cached_llm = ChatDatabricks(endpoint=LLM_MODEL)
-    return _cached_llm
+    """Return the main LLM instance (for backward compat)."""
+    return LLM_MAIN
 
 
 # ---------------------------------------------------------------------------
@@ -116,28 +161,27 @@ def create_quick_response(message: str, user_context: Optional[Dict] = None) -> 
     if not selected_tools:
         selected_tools = QUICK_TOOLS[:2]
     try:
-        llm = get_llm()
-        agent = create_react_agent(llm, selected_tools)
+        agent = create_react_agent(LLM_MAIN, selected_tools)
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=message)]
         result = agent.invoke({"messages": messages})
         response_content = ""
         tool_calls_made = []
         for msg in result.get("messages", []):
             if isinstance(msg, AIMessage):
-                if msg.content:
-                    response_content = msg.content
+                text = content_text(msg)
+                if text:
+                    response_content = text
                 if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     tool_calls_made.extend([tc.get("name", "unknown") for tc in msg.tool_calls])
         return {"response": response_content, "tool_calls": list(set(tool_calls_made)), "mode": "quick", "intent": intent}
     except Exception as e:
         logger.error(f"Quick query error: {e}", exc_info=True)
         try:
-            llm = get_llm()
-            resp = llm.invoke([
+            resp = LLM_MAIN.invoke([
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=message),
             ])
-            return {"response": resp.content, "tool_calls": [], "mode": "quick", "fallback": True, "intent": intent}
+            return {"response": content_text(resp), "tool_calls": [], "mode": "quick", "fallback": True, "intent": intent}
         except Exception:
             return {"response": f"Error: {str(e)}", "tool_calls": [], "mode": "quick", "error": str(e), "intent": intent}
 
@@ -256,11 +300,9 @@ Use write_analysis to save key findings when the analysis is significant."""
 
 @trace(name="supervisor", span_type="CHAIN")
 def supervisor_node(state: DeepAnalysisState) -> dict:
-    """LLM-based router that decides the next step."""
+    """LLM-based router using a lightweight model for fast routing."""
     _emit_progress("routing", "Deciding next step...", agent="supervisor")
     try:
-        llm = get_llm()
-
         context_parts = [f"User question: {state['user_query']}"]
         if state.get("plan"):
             context_parts.append(f"Plan exists: yes ({state['plan'][:200]}...)")
@@ -269,12 +311,13 @@ def supervisor_node(state: DeepAnalysisState) -> dict:
         context_parts.append("Evidence: gathered" if state.get("retrieved_evidence") else "Evidence: not yet gathered")
         context_parts.append("Analysis: complete" if state.get("analysis_result") else "Analysis: not complete")
 
-        resp = llm.invoke([
+        resp = LLM_SUPERVISOR.invoke([
             SystemMessage(content=SUPERVISOR_PROMPT),
             HumanMessage(content="\n".join(context_parts)),
         ])
 
-        decision = resp.content.strip().upper().split()[0] if resp.content else "RESPOND"
+        text = content_text(resp).strip()
+        decision = text.upper().split()[0] if text else "RESPOND"
         valid = {"CLARIFY", "PLAN", "RETRIEVE", "ANALYZE", "RESPOND"}
         if decision not in valid:
             decision = "RESPOND"
@@ -298,16 +341,15 @@ def supervisor_node(state: DeepAnalysisState) -> dict:
 def planner_node(state: DeepAnalysisState) -> dict:
     _emit_progress("planning", "Creating analysis plan...", agent="planner")
     try:
-        llm = get_llm()
         context = (
             f"User question: {state['user_query']}\n\n"
             f"{state.get('prerequisite_status', 'Prerequisite status unknown.')}"
         )
-        resp = llm.invoke([
+        resp = LLM_MAIN.invoke([
             SystemMessage(content=PLANNER_PROMPT),
             HumanMessage(content=context),
         ])
-        return {"plan": resp.content, "messages": []}
+        return {"plan": content_text(resp), "messages": []}
     except Exception as e:
         logger.error(f"Planner LLM error: {e}")
         return {"plan": f"1. Gather relevant data for: {state['user_query']}", "messages": []}
@@ -323,8 +365,7 @@ def retrieval_node(state: DeepAnalysisState) -> dict:
             check_ed_performance, check_staffing_efficiency,
             check_operational_kpis, check_data_freshness,
         ]
-        llm = get_llm()
-        agent = create_react_agent(llm, retrieval_tools)
+        agent = create_react_agent(LLM_MAIN, retrieval_tools)
 
         prompt = f"Execute this data-gathering plan:\n\n{state.get('plan', '')}\n\nUser question: {state['user_query']}"
         result = agent.invoke({
@@ -335,8 +376,9 @@ def retrieval_node(state: DeepAnalysisState) -> dict:
         tools_used = []
         for msg in result.get("messages", []):
             if isinstance(msg, AIMessage):
-                if msg.content:
-                    evidence = msg.content
+                text = content_text(msg)
+                if text:
+                    evidence = text
                 if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     tools_used.extend([tc.get("name", "unknown") for tc in msg.tool_calls])
 
@@ -348,10 +390,10 @@ def retrieval_node(state: DeepAnalysisState) -> dict:
 
 @trace(name="analyst", span_type="CHAIN")
 def analyst_node(state: DeepAnalysisState) -> dict:
+    """Analyst uses a more capable model for high-quality interpretation."""
     _emit_progress("analyzing", "Interpreting results and forming recommendations...", agent="analyst")
     try:
-        llm = get_llm()
-        agent = create_react_agent(llm, [write_analysis])
+        agent = create_react_agent(LLM_ANALYST_INSTANCE, [write_analysis])
 
         context = (
             f"User question: {state['user_query']}\n\n"
@@ -367,15 +409,16 @@ def analyst_node(state: DeepAnalysisState) -> dict:
         tools_used = []
         for msg in result.get("messages", []):
             if isinstance(msg, AIMessage):
-                if msg.content and len(msg.content) > len(analysis):
-                    analysis = msg.content
+                text = content_text(msg)
+                if text and len(text) > len(analysis):
+                    analysis = text
                 if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     tools_used.extend([tc.get("name", "unknown") for tc in msg.tool_calls])
 
         return {"analysis_result": analysis, "tool_calls_made": tools_used, "messages": []}
     except Exception as e:
         logger.error(f"Analyst agent error: {e}")
-        return {"analysis_result": f"The analysis could not be completed due to a model error. Please try again.", "tool_calls_made": [], "messages": []}
+        return {"analysis_result": "The analysis could not be completed due to a model error. Please try again.", "tool_calls_made": [], "messages": []}
 
 
 @trace(name="respond", span_type="CHAIN")
@@ -388,12 +431,11 @@ def respond_node(state: DeepAnalysisState) -> dict:
         return {"messages": [AIMessage(content=state["analysis_result"])]}
 
     try:
-        llm = get_llm()
-        resp = llm.invoke([
+        resp = LLM_MAIN.invoke([
             SystemMessage(content="Summarize what you know so far and explain that a complete analysis could not be finished. Be helpful."),
             HumanMessage(content=f"Question: {state['user_query']}\nEvidence: {state.get('retrieved_evidence', 'none')}\nPlan: {state.get('plan', 'none')}"),
         ])
-        return {"messages": [AIMessage(content=resp.content)]}
+        return {"messages": [AIMessage(content=content_text(resp))]}
     except Exception as e:
         logger.error(f"Respond LLM error: {e}")
         return {"messages": [AIMessage(content="The AI model is temporarily unavailable. Please try again in a moment.")]}
@@ -403,14 +445,13 @@ def respond_node(state: DeepAnalysisState) -> dict:
 def clarify_node(state: DeepAnalysisState) -> dict:
     _emit_progress("clarifying", "Asking for clarification...", agent="clarify")
     try:
-        llm = get_llm()
-        resp = llm.invoke([
+        resp = LLM_MAIN.invoke([
             SystemMessage(content="The user's question is ambiguous. Ask a brief, specific clarifying question to narrow it down."),
             HumanMessage(content=f"User question: {state['user_query']}"),
         ])
         return {
             "needs_clarification": True,
-            "clarification_question": resp.content,
+            "clarification_question": content_text(resp),
             "next_step": "RESPOND",
             "messages": [],
         }
@@ -438,6 +479,9 @@ def route_supervisor(state: DeepAnalysisState) -> str:
 
 # ---- Graph builder ----
 
+_checkpointer = MemorySaver()
+
+
 def build_deep_graph():
     graph = StateGraph(DeepAnalysisState)
     graph.add_node("supervisor", supervisor_node)
@@ -447,24 +491,17 @@ def build_deep_graph():
     graph.add_node("respond", respond_node)
     graph.add_node("clarify", clarify_node)
 
-    graph.set_entry_point("supervisor")
+    graph.add_edge(START, "supervisor")
     graph.add_conditional_edges("supervisor", route_supervisor)
     graph.add_edge("planner", "supervisor")
     graph.add_edge("retrieval", "supervisor")
     graph.add_edge("analyst", "supervisor")
     graph.add_edge("clarify", "respond")
     graph.add_edge("respond", END)
-    return graph.compile()
+    return graph.compile(checkpointer=_checkpointer)
 
 
-_deep_graph = None
-
-
-def get_deep_graph():
-    global _deep_graph
-    if _deep_graph is None:
-        _deep_graph = build_deep_graph()
-    return _deep_graph
+DEEP_GRAPH = build_deep_graph()
 
 
 def _build_query(message: str, history: Optional[List[Dict]] = None) -> str:
@@ -478,8 +515,7 @@ def _build_query(message: str, history: Optional[List[Dict]] = None) -> str:
     return message
 
 
-def _run_deep_graph(query: str, prereq_status: str) -> Dict:
-    graph = get_deep_graph()
+def _run_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = None) -> Dict:
     initial_state = {
         "messages": [],
         "user_query": query,
@@ -493,12 +529,20 @@ def _run_deep_graph(query: str, prereq_status: str) -> Dict:
         "iteration": [],
         "tool_calls_made": [],
     }
-    result = graph.invoke(initial_state)
+    # Fresh thread per request by default. The shared MemorySaver persists state
+    # per thread_id, and `iteration`/`messages` use additive reducers — reusing a
+    # constant "default" thread would accumulate a prior request's iteration count
+    # (short-circuiting the supervisor) and leak its messages. History is already
+    # folded into `query` via _build_query, so we never need to resume a thread.
+    config = {"configurable": {"thread_id": thread_id or uuid.uuid4().hex}}
+    result = DEEP_GRAPH.invoke(initial_state, config=config)
 
     response_content = ""
     for msg in result.get("messages", []):
-        if isinstance(msg, AIMessage) and msg.content and len(msg.content) > len(response_content):
-            response_content = msg.content
+        if isinstance(msg, AIMessage):
+            text = content_text(msg)
+            if text and len(text) > len(response_content):
+                response_content = text
     if not response_content:
         response_content = result.get("analysis_result", "Analysis complete but no output was generated.")
 
@@ -507,31 +551,86 @@ def _run_deep_graph(query: str, prereq_status: str) -> Dict:
 
 
 # ===========================================================================
+# Async streaming support
+# ===========================================================================
+
+async def _astream_deep_graph(query: str, prereq_status: str, thread_id: Optional[str] = None):
+    """Async generator that yields progress events and final result from the deep graph."""
+    initial_state = {
+        "messages": [],
+        "user_query": query,
+        "plan": "",
+        "retrieved_evidence": "",
+        "prerequisite_status": prereq_status,
+        "analysis_result": "",
+        "needs_clarification": False,
+        "clarification_question": "",
+        "next_step": "",
+        "iteration": [],
+        "tool_calls_made": [],
+    }
+    # Fresh thread per request (see _run_deep_graph for why "default" is unsafe).
+    config = {"configurable": {"thread_id": thread_id or uuid.uuid4().hex}}
+    final_state = {}
+    # Build the routing trace from the streamed node events directly. _local.routing_trace
+    # is unreliable here because astream may run sync nodes on a worker thread where the
+    # thread-local isn't set, so we don't depend on it for the trace.
+    routing_trace = []
+    async for event in DEEP_GRAPH.astream(initial_state, config=config, stream_mode="updates"):
+        for node_name, node_output in event.items():
+            yield {"stage": node_name, "message": f"Completed {node_name}"}
+            routing_trace.append({"agent": node_name, "action": node_name,
+                                  "message": f"Completed {node_name}"})
+            final_state.update(node_output)
+
+    response_content = ""
+    for msg in final_state.get("messages", []):
+        if isinstance(msg, AIMessage):
+            text = content_text(msg)
+            if text and len(text) > len(response_content):
+                response_content = text
+    if not response_content:
+        response_content = final_state.get("analysis_result", "Analysis complete but no output was generated.")
+
+    yield {
+        "stage": "done",
+        "response": response_content,
+        "tool_calls": list(set(final_state.get("tool_calls_made", []))),
+        "routing_trace": routing_trace,
+    }
+
+
+# ===========================================================================
 # Public API
 # ===========================================================================
 
-def invoke_deep_agent(message: str, history: Optional[List[Dict]] = None) -> Dict:
+def invoke_deep_agent(message: str, history: Optional[List[Dict]] = None,
+                      thread_id: Optional[str] = None) -> Dict:
     """Non-streaming deep analysis -- used by autonomous mode."""
     try:
         prereq_status = check_prerequisite_analyses()
         query = _build_query(message, history)
-        return _run_deep_graph(query, prereq_status)
+        return _run_deep_graph(query, prereq_status, thread_id=thread_id)
     except Exception as e:
         logger.error(f"Deep analysis error: {e}", exc_info=True)
         return {"response": f"Error during deep analysis: {str(e)}", "tool_calls": [], "mode": "deep", "error": str(e)}
 
 
-def invoke_deep_agent_streaming(message: str, history: Optional[List[Dict]] = None) -> queue.Queue:
+def invoke_deep_agent_streaming(message: str, history: Optional[List[Dict]] = None,
+                                thread_id: Optional[str] = None) -> queue.Queue:
     """Streaming deep analysis -- returns a Queue that yields progress events.
 
+    Uses graph.astream() for real node-level streaming; also pushes
+    coarse stage events for the polling API.
+
     Events:
-        {"stage": "planning", "message": "..."}
-        {"stage": "retrieving", "message": "..."}
-        {"stage": "analyzing", "message": "..."}
+        {"stage": "supervisor", "message": "..."}
+        {"stage": "planner", "message": "..."}
+        ...
         {"stage": "done", "response": "...", "tool_calls": [...]}
         {"stage": "error", "message": "..."}
     """
-    q = queue.Queue()
+    q: queue.Queue = queue.Queue()
 
     def _run():
         _local.progress_queue = q
@@ -540,10 +639,22 @@ def invoke_deep_agent_streaming(message: str, history: Optional[List[Dict]] = No
             _emit_progress("starting", "Checking prerequisites...", agent="system")
             prereq_status = check_prerequisite_analyses()
             query = _build_query(message, history)
-            result = _run_deep_graph(query, prereq_status)
-            q.put({"stage": "done", "response": result["response"],
-                   "tool_calls": result.get("tool_calls", []),
-                   "routing_trace": list(_local.routing_trace)})
+
+            loop = asyncio.new_event_loop()
+            try:
+                async def _consume():
+                    last_event = None
+                    async for event in _astream_deep_graph(query, prereq_status, thread_id=thread_id):
+                        q.put(event)
+                        last_event = event
+                    return last_event
+
+                last = loop.run_until_complete(_consume())
+                if last and last.get("stage") != "done":
+                    q.put({"stage": "done", "response": "Analysis completed.", "tool_calls": [],
+                           "routing_trace": list(_local.routing_trace)})
+            finally:
+                loop.close()
         except Exception as e:
             logger.error(f"Streaming deep analysis error: {e}", exc_info=True)
             q.put({"stage": "error", "message": str(e)})
@@ -557,12 +668,12 @@ def invoke_deep_agent_streaming(message: str, history: Optional[List[Dict]] = No
 
 
 def invoke_agent(message: str, mode: str = "orchestrator", history: Optional[List[Dict]] = None,
-                 user_context: Optional[Dict] = None) -> Dict:
+                 user_context: Optional[Dict] = None, thread_id: Optional[str] = None) -> Dict:
     logger.info(f"Invoking agent: mode={mode}, message={message[:50]}...")
     if mode in ("orchestrator", "quick"):
         return create_quick_response(message, user_context)
     else:
-        return invoke_deep_agent(message, history)
+        return invoke_deep_agent(message, history, thread_id=thread_id)
 
 
 PLOT_SYSTEM_PROMPT = f"""You are a data visualization agent for a hospital operations control tower.
@@ -598,8 +709,7 @@ Rules:
 def create_plot_spec(content: str, history: Optional[List[Dict]] = None) -> Dict:
     """Use an LLM agent to extract a chart spec from an agent response."""
     try:
-        llm = get_llm()
-        agent = create_react_agent(llm, [execute_sql])
+        agent = create_react_agent(LLM_MAIN, [execute_sql])
         context = f"Agent response to visualize:\n\n{content}"
         if history:
             recent = history[-4:]
@@ -613,7 +723,7 @@ def create_plot_spec(content: str, history: Optional[List[Dict]] = None) -> Dict
 
         for msg in reversed(result.get("messages", [])):
             if isinstance(msg, AIMessage) and msg.content:
-                text = msg.content.strip()
+                text = content_text(msg).strip()
                 if text.startswith("```"):
                     text = text.split("\n", 1)[1] if "\n" in text else text[3:]
                     text = text.rsplit("```", 1)[0].strip()

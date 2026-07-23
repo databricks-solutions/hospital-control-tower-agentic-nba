@@ -1,0 +1,27 @@
+bundle:
+  name: hospital_ops_nba_app
+  databricks_cli_version: ">= 0.240.0"
+
+include:
+  - variables.yml
+  - resources/*.yml
+
+# Workspace-specific values (catalog, warehouse_id, vector_search_endpoint) are
+# supplied at deploy time via BUNDLE_VAR_* env vars — see .databricks-env.sh.example.
+# The workspace host resolves from the CLI profile (DATABRICKS_CONFIG_PROFILE),
+# so no host is hard-coded here and nothing workspace-specific is committed.
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    workspace:
+      host: ${var.workspace_host}
+      root_path: ${var.root_path}
+    permissions:
+      - user_name: ${var.deploying_user}
+        level: CAN_MANAGE
+    run_as:
+      user_name: ${var.deploying_user}

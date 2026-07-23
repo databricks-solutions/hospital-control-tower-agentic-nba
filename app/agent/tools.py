@@ -1,4 +1,5 @@
 """Agent tools for SQL execution, vector search, and hospital operations analysis."""
+import os
 import re
 import json
 import uuid
@@ -398,43 +399,52 @@ def write_analysis(
         record_id = str(uuid.uuid4())
         created_at = datetime.utcnow()
 
-        # Try Lakebase first
+        # Optionally try Lakebase first (opt-in via USE_LAKEBASE). Off by default:
+        # the app syncs only app/, so `src.db` isn't importable at runtime and this
+        # branch would throw on every write. Unity Catalog is the default store.
         lakebase_success = False
-        try:
-            from src.db import session_scope
-            from src.models.analysis import AnalysisOutput
-            with session_scope() as session:
-                analysis = AnalysisOutput(
-                    id=record_id, encounter_id=encounter_id, analysis_type=analysis_type,
-                    insights=insights, recommendations=recommendations, created_at=created_at,
-                    agent_mode=agent_mode, status='pending', priority=priority
-                )
-                session.add(analysis)
-                session.commit()
-                lakebase_success = True
-        except Exception as lb_error:
-            logger.warning(f"write_analysis: Lakebase failed, falling back to Unity Catalog: {lb_error}")
+        if os.environ.get("USE_LAKEBASE", "false").lower() == "true":
+            try:
+                from src.db import session_scope
+                from src.models.analysis import AnalysisOutput
+                with session_scope() as session:
+                    analysis = AnalysisOutput(
+                        id=record_id, encounter_id=encounter_id, analysis_type=analysis_type,
+                        insights=insights, recommendations=recommendations, created_at=created_at,
+                        agent_mode=agent_mode, status='pending', priority=priority
+                    )
+                    session.add(analysis)
+                    session.commit()
+                    lakebase_success = True
+            except Exception as lb_error:
+                logger.warning(f"write_analysis: Lakebase failed, falling back to Unity Catalog: {lb_error}")
 
         if not lakebase_success:
-            def escape(s):
-                return s.replace("'", "''") if s else None
-            insights_escaped = escape(insights)
-            reco_escaped = escape(recommendations) if recommendations else None
-            enc_escaped = escape(encounter_id) if encounter_id else None
-            priority_escaped = escape(priority) if priority else None
-            reco_value = f"'{reco_escaped}'" if reco_escaped else "NULL"
-            enc_value = f"'{enc_escaped}'" if enc_escaped else "NULL"
-            priority_value = f"'{priority_escaped}'" if priority_escaped else "NULL"
-
+            from databricks.sdk.service.sql import StatementParameterListItem
+            w = get_workspace_client()
             insert_sql = f"""
             INSERT INTO {ANALYSIS_TABLE}
             (id, encounter_id, analysis_type, insights, recommendations, created_at, agent_mode, metadata, status, priority)
-            VALUES ('{record_id}', {enc_value}, '{escape(analysis_type)}', '{insights_escaped}',
-                    {reco_value}, '{created_at.isoformat()}', '{escape(agent_mode)}', NULL, 'pending', {priority_value})
+            VALUES (:p_id, :p_encounter_id, :p_analysis_type, :p_insights,
+                    :p_recommendations, :p_created_at, :p_agent_mode, NULL, 'pending', :p_priority)
             """
-            result = _execute_query(insert_sql)
-            if not (result.get("success", False) or result.get("error") is None):
-                return json.dumps({"error": f"Write failed: {result.get('error')}"})
+            params = [
+                StatementParameterListItem(name="p_id", value=record_id),
+                StatementParameterListItem(name="p_encounter_id", value=encounter_id),
+                StatementParameterListItem(name="p_analysis_type", value=analysis_type),
+                StatementParameterListItem(name="p_insights", value=insights),
+                StatementParameterListItem(name="p_recommendations", value=recommendations),
+                StatementParameterListItem(name="p_created_at", value=created_at.isoformat()),
+                StatementParameterListItem(name="p_agent_mode", value=agent_mode),
+                StatementParameterListItem(name="p_priority", value=priority),
+            ]
+            result = w.statement_execution.execute_statement(
+                warehouse_id=WAREHOUSE_ID, statement=insert_sql,
+                parameters=params, wait_timeout="30s",
+            )
+            state = result.status.state.value if result.status and result.status.state else "UNKNOWN"
+            if state not in ("SUCCEEDED", "CLOSED"):
+                return json.dumps({"error": f"Write failed: {result.status.error}"})
 
         return json.dumps({
             "success": True, "id": record_id, "analysis_type": analysis_type,

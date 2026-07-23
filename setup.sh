@@ -1,279 +1,117 @@
 #!/bin/bash
-set -e
+# First-time provisioning for the Hospital Control Tower demo.
+#
+# Config is pure DABs now — no files are generated. Workspace-specific values and
+# the CLI profile come from .databricks-env.sh (see .databricks-env.sh.example).
+#
+# Usage:
+#   source .databricks-env.sh
+#   ./setup.sh [target]            # target defaults to dev
+#   ./setup.sh dev --skip-data     # skip the (slow) data generation job
+#   ./setup.sh dev --skip-to-app   # only (re)deploy + run the app, skip setup jobs
+#
+# For routine redeploys after setup, you don't need this script — just:
+#   source .databricks-env.sh && databricks bundle deploy -t dev \
+#     && databricks bundle run hospital_ops_app -t dev
+set -euo pipefail
 
-TARGET="${1:-dev}"
-PROFILE="${2:-}"
+TARGET="dev"
 SKIP_DATA=false
-SKIP_TO_PHASE2=false
-
+SKIP_TO_APP=false
 for arg in "$@"; do
   case "$arg" in
-    --skip-data) SKIP_DATA=true ;;
-    --skip-to-phase2) SKIP_TO_PHASE2=true ;;
+    --skip-data)   SKIP_DATA=true ;;
+    --skip-to-app) SKIP_TO_APP=true ;;
+    -*)            echo "Unknown flag: $arg" >&2; exit 1 ;;
+    *)             TARGET="$arg" ;;
   esac
 done
 
-PROFILE_ARG=""
-[[ -n "$PROFILE" && "$PROFILE" != --* ]] && PROFILE_ARG="-p $PROFILE"
-
-APP_NAME="${TARGET}-hospital-control-tower"
-
 echo "=========================================="
-echo " Hospital Control Tower -- Full Setup"
-echo " Target: $TARGET"
-echo " Skip data: $SKIP_DATA"
+echo " Hospital Control Tower — Setup"
+echo " Target:  $TARGET"
+echo " Profile: ${DATABRICKS_CONFIG_PROFILE:-<none — set via .databricks-env.sh>}"
 echo "=========================================="
-echo ""
 
-# --- Pre-flight checks ---
-echo "[Pre-flight] Checking prerequisites..."
-
-if ! command -v databricks &> /dev/null; then
-  echo "  ERROR: 'databricks' CLI not found. Install: https://docs.databricks.com/dev-tools/cli/install.html"
+# --- Pre-flight ---
+command -v databricks >/dev/null 2>&1 || {
+  echo "ERROR: 'databricks' CLI not found. https://docs.databricks.com/dev-tools/cli/install.html" >&2
   exit 1
-fi
-echo "  Databricks CLI: OK"
-
-if ! databricks auth describe $PROFILE_ARG &> /dev/null 2>&1; then
-  echo "  WARNING: Could not verify authentication. Make sure 'databricks configure' has been run."
-fi
-
-if [[ ! -f databricks.yml.template ]]; then
-  echo "  ERROR: databricks.yml.template not found. Are you in the project root?"
-  exit 1
-fi
-
-# --- Cloud provider prompt ---
-echo ""
-echo "Which cloud provider? [aws/azure] (default: aws)"
-read -r CLOUD
-CLOUD=$(echo "$CLOUD" | tr '[:upper:]' '[:lower:]')
-if [[ "$CLOUD" == "azure" ]]; then
-  python3 -c "
-import re
-t = open('variables.yml').read()
-t = re.sub(r'(node_type_id:\n\s+description:[^\n]*\n\s+default: \")[^\"]*\"', r'\1Standard_DS3_v2\"', t)
-open('variables.yml','w').write(t)
-"
-  echo "  node_type_id set to Standard_DS3_v2"
-else
-  echo "  Using default node_type_id (i3.xlarge)"
-fi
-
-# --- Read variables from variables.yml ---
-read_var() {
-  local key="$1"
-  grep -A2 "^  ${key}:" variables.yml | grep "default:" \
-    | sed 's/.*default: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/' \
-    | sed 's/^ *//;s/ *$//'
 }
+if [[ -z "${BUNDLE_VAR_catalog:-}" || -z "${BUNDLE_VAR_warehouse_id:-}" || -z "${BUNDLE_VAR_vector_search_endpoint:-}" ]]; then
+  echo "ERROR: Required BUNDLE_VAR_* not set. Run: source .databricks-env.sh" >&2
+  echo "  (copy .databricks-env.sh.example to .databricks-env.sh and fill in your values)" >&2
+  exit 1
+fi
+echo "  catalog=$BUNDLE_VAR_catalog  warehouse=$BUNDLE_VAR_warehouse_id  vs=$BUNDLE_VAR_vector_search_endpoint"
 
-CATALOG=$(read_var "catalog")
-SCHEMA=$(read_var "schema")
-WAREHOUSE_ID=$(read_var "warehouse_id")
-VECTOR_ENDPOINT=$(read_var "vector_search_endpoint")
-LLM_ORCHESTRATOR=$(read_var "llm_model_orchestrator")
-LLM_RAG=$(read_var "llm_model_rag")
-
-_ORIG_CATALOG="$CATALOG"
-_ORIG_WAREHOUSE="$WAREHOUSE_ID"
-_ORIG_VECTOR="$VECTOR_ENDPOINT"
-
-prompt_if_empty() {
-  local var_name="$1" current_val="$2" description="$3"
-  if [[ -z "$current_val" ]]; then
-    echo "  $description is not set in variables.yml." >&2
-    read -rp "  Enter $var_name: " current_val
-    [[ -z "$current_val" ]] && { echo "  ERROR: $var_name is required" >&2; exit 1; }
+run_job() {  # run_job <job_key> <fatal|warn>
+  local job="$1" mode="${2:-fatal}"
+  echo "  -> $job"
+  if databricks bundle run "$job" -t "$TARGET"; then
+    return 0
+  elif [[ "$mode" == "warn" ]]; then
+    echo "  WARNING: $job failed (non-fatal) — continue and check manually later." >&2
+    return 1   # non-zero so callers can detect the failure (guard bare calls with '|| true')
+  else
+    echo "FAILED: $job" >&2; exit 1
   fi
-  echo "$current_val"
 }
 
-CATALOG=$(prompt_if_empty "catalog" "$CATALOG" "Unity Catalog name")
-SCHEMA=$(prompt_if_empty "schema" "$SCHEMA" "Schema name")
-WAREHOUSE_ID=$(prompt_if_empty "warehouse_id" "$WAREHOUSE_ID" "SQL Warehouse ID")
-VECTOR_ENDPOINT=$(prompt_if_empty "vector_search_endpoint" "$VECTOR_ENDPOINT" "Vector Search endpoint name")
+# --- Deploy the bundle (jobs + app resource) ---
+echo "[1/8] Deploying bundle..."
+databricks bundle deploy -t "$TARGET"
 
-echo "  Catalog: $CATALOG"
-echo "  Schema: $SCHEMA"
-echo "  Warehouse: $WAREHOUSE_ID"
-echo "  Vector Search: $VECTOR_ENDPOINT"
+if [[ "$SKIP_TO_APP" == "false" ]]; then
+  # --- Data + data model ---
+  if [[ "$SKIP_DATA" == "false" ]]; then
+    echo "[2/8] Generating data..."
+    run_job generate_data fatal
+  else
+    echo "[2/8] Skipping data generation (--skip-data)"
+  fi
 
-export BUNDLE_VAR_catalog="$CATALOG"
-export BUNDLE_VAR_schema="$SCHEMA"
-export BUNDLE_VAR_warehouse_id="$WAREHOUSE_ID"
-export BUNDLE_VAR_vector_search_endpoint="$VECTOR_ENDPOINT"
-export BUNDLE_VAR_llm_model_orchestrator="$LLM_ORCHESTRATOR"
-export BUNDLE_VAR_llm_model_rag="$LLM_RAG"
+  echo "[3/8] Setting up data model..."
+  run_job setup_data_model fatal
 
-if [[ "$CATALOG" != "$_ORIG_CATALOG" || "$WAREHOUSE_ID" != "$_ORIG_WAREHOUSE" || "$VECTOR_ENDPOINT" != "$_ORIG_VECTOR" ]]; then
-  echo ""
-  echo "  *** IMPORTANT: You entered values interactively that are NOT saved in variables.yml."
-  echo "  *** For future deploys (deploy.sh) to work, update variables.yml with:"
-  [[ "$CATALOG" != "$_ORIG_CATALOG" ]] && echo "  ***   catalog default: \"$CATALOG\""
-  [[ "$WAREHOUSE_ID" != "$_ORIG_WAREHOUSE" ]] && echo "  ***   warehouse_id default: \"$WAREHOUSE_ID\""
-  [[ "$VECTOR_ENDPOINT" != "$_ORIG_VECTOR" ]] && echo "  ***   vector_search_endpoint default: \"$VECTOR_ENDPOINT\""
+  echo "[4/8] Setting up Lakebase / analysis table..."
+  run_job setup_lakebase warn || true   # optional; UC-Delta fallback covers analysis writes
+
+  echo "[5/8] Building encounter vector index..."
+  run_job setup_vector_search fatal
+
+  echo "[6/8] Building SOP vector index..."
+  # Self-sufficient now: falls back to bundled data/sop_samples/*.txt when no sop_pdfs
+  # table exists, so SOP grounding (the demo's Next-Best-Action core) works on a clean
+  # workspace. Fatal because a silent failure here guts the headline capability.
+  run_job setup_sop_vector_search fatal
 fi
-echo ""
-
-# --- Generate app/app.yaml (always needed) ---
-echo "[1/13] Generating app/app.yaml..."
-cat > app/app.yaml << APPYAML
-# Databricks App Configuration (auto-generated by setup.sh)
-command:
-  - sh
-  - -c
-  - pip install -r requirements.txt && npm install && npm run build && gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 600 api_server:app
-
-env:
-  - name: DATABRICKS_WAREHOUSE_ID
-    value: "${WAREHOUSE_ID}"
-
-  - name: CATALOG
-    value: "${CATALOG}"
-
-  - name: SCHEMA
-    value: "${SCHEMA}"
-
-  - name: VECTOR_SEARCH_ENDPOINT
-    value: "${VECTOR_ENDPOINT}"
-
-  - name: LLM_MODEL_ORCHESTRATOR
-    value: "${LLM_ORCHESTRATOR:-databricks-claude-sonnet-4-5}"
-
-  - name: LLM_MODEL_RAG
-    value: "${LLM_RAG:-databricks-claude-sonnet-4-5}"
-
-  - name: AUTONOMOUS_INTERVAL_SECONDS
-    value: "3600"
-
-  - name: AUTO_START_AUTONOMOUS
-    value: "false"
-
-  - name: MLFLOW_EXPERIMENT
-    value: "/Shared/hospital-control-tower-agent"
-APPYAML
-echo "  app/app.yaml written"
-
-if [[ "$SKIP_TO_PHASE2" == "true" ]]; then
-  echo ""
-  echo "=== Skipping Phase 1 (--skip-to-phase2) ==="
-  echo ""
-  SKIP_PHASE1_SPLIT=true
-  cp databricks.yml.template databricks.yml
-else
-
-# ============================================================
-# Phase 1 -- Deploy jobs only (no app resource)
-# ============================================================
-
-echo "=== Phase 1: Deploy jobs and run setup ==="
-echo ""
-
-# --- Generate databricks.yml (check if app already exists to avoid destroying it) ---
-echo "[2/13] Generating databricks.yml..."
-cp databricks.yml.template databricks.yml
-if databricks apps get --name "$APP_NAME" $PROFILE_ARG &>/dev/null; then
-  echo "  App resource already exists -- using full config (skipping two-phase split)"
-  SKIP_PHASE1_SPLIT=true
-else
-  SKIP_PHASE1_SPLIT=false
-  sed '/resources\/apps.yml/d' databricks.yml.template > databricks.yml
-  echo "  databricks.yml written (app resource excluded for first deploy)"
-fi
-
-# --- Deploy bundle (jobs only) ---
-echo "[3/13] Deploying bundle (jobs only)..."
-databricks bundle deploy -t "$TARGET" $PROFILE_ARG || { echo "FAILED: bundle deploy"; exit 1; }
-echo "  Bundle deployed"
-echo ""
-
-# --- Generate data ---
-if [[ "$SKIP_DATA" == "false" ]]; then
-  echo "[4/13] Generating data..."
-  databricks bundle run generate_data -t "$TARGET" $PROFILE_ARG || { echo "FAILED: generate_data"; exit 1; }
-  echo "  Data generated"
-else
-  echo "[4/13] Skipping data generation (--skip-data)"
-fi
-
-# --- Run setup jobs ---
-echo "[5/13] Setting up tables..."
-databricks bundle run setup_lakebase -t "$TARGET" $PROFILE_ARG \
-    || { echo "FAILED: setup_lakebase"; exit 1; }
-echo "  Tables created"
-
-echo "[6/13] Setting up data model..."
-databricks bundle run setup_data_model -t "$TARGET" $PROFILE_ARG \
-    || { echo "FAILED: setup_data_model"; exit 1; }
-echo "  Data model ready"
-
-echo "[7/13] Setting up vector search..."
-databricks bundle run setup_vector_search -t "$TARGET" $PROFILE_ARG \
-    || { echo "FAILED: setup_vector_search"; exit 1; }
-echo "  Vector search ready"
-
-echo "[8/13] Setting up SOP vector search..."
-databricks bundle run setup_sop_vector_search -t "$TARGET" $PROFILE_ARG \
-    || { echo "WARNING: SOP vector search had issues (SOPs may not be loaded yet)"; }
-echo "  SOP vector search done"
-echo ""
-
-fi  # end SKIP_TO_PHASE2 guard
-
-# ============================================================
-# Phase 2 -- Deploy with app (securables now exist)
-# ============================================================
-
-echo "=== Phase 2: Deploy app resource ==="
-echo ""
-
-# --- Generate full databricks.yml (only needed if Phase 1 excluded apps) ---
-if [[ "$SKIP_PHASE1_SPLIT" == "false" ]]; then
-  echo "[9/13] Generating databricks.yml (full, with app resource)..."
-  cp databricks.yml.template databricks.yml
-  echo "  databricks.yml written (full)"
-else
-  echo "[9/13] databricks.yml already includes app resource"
-fi
-
-# --- Deploy bundle with app ---
-echo "[10/13] Deploying bundle (with app resource)..."
-databricks bundle deploy -t "$TARGET" $PROFILE_ARG || { echo "FAILED: bundle deploy with app"; exit 1; }
-echo "  Bundle deployed with app"
 
 # --- Deploy app code & start ---
-echo "[11/13] Deploying app code..."
-databricks bundle run hospital_ops_app -t "$TARGET" $PROFILE_ARG \
-    || { echo "WARNING: bundle run for app failed — you may need to deploy manually from the workspace"; }
-echo "  App deployment triggered"
+echo "[7/8] Deploying app code..."
+run_job hospital_ops_app fatal
 
-# --- Grant permissions (retry for SP provisioning delay) ---
-echo "[12/13] Granting permissions..."
-sleep 10
+# --- Grant permissions to the app service principal (retry for SP provisioning delay) ---
+echo "[8/8] Granting permissions..."
 GRANT_OK=false
 for attempt in 1 2 3; do
-  if databricks bundle run grant_permissions -t "$TARGET" $PROFILE_ARG; then
-    GRANT_OK=true
-    break
-  fi
-  echo "  Attempt $attempt/3 failed, retrying in 15s..."
-  sleep 15
+  if databricks bundle run grant_permissions -t "$TARGET"; then GRANT_OK=true; break; fi
+  echo "  attempt $attempt/3 failed, retrying in 15s..."; sleep 15
 done
-if [[ "$GRANT_OK" != "true" ]]; then
-  echo "  WARNING: grant_permissions failed after 3 attempts — run manually later"
-fi
+[[ "$GRANT_OK" == "true" ]] || echo "  WARNING: grant_permissions failed after 3 attempts — run manually later." >&2
 
-# --- Diagnostics ---
-echo "[13/13] Running diagnostics..."
-databricks bundle run diagnostic_check -t "$TARGET" $PROFILE_ARG \
-    || { echo "WARNING: diagnostic_check had issues"; }
-echo "  Diagnostics complete"
+# --- Diagnostics (non-fatal) ---
+DIAG_OK=true
+run_job diagnostic_check warn || DIAG_OK=false
 
 echo ""
 echo "=========================================="
-echo " Setup complete!"
-echo ""
-echo " App: $APP_NAME"
-echo " Open your Databricks workspace > Apps"
+if [[ "$GRANT_OK" == "true" && "$DIAG_OK" == "true" ]]; then
+  echo " Setup complete — open Databricks > Apps > $TARGET-hospital-control-tower"
+else
+  echo " Setup finished WITH WARNINGS — the app is deployed but needs attention:"
+  [[ "$GRANT_OK" == "true" ]]  || echo "   - grant_permissions did not succeed; the app may lack table/index access."
+  [[ "$DIAG_OK"  == "true" ]]  || echo "   - diagnostic_check reported problems; review its job output."
+  echo " Open Databricks > Apps > $TARGET-hospital-control-tower and check the items above."
+fi
 echo "=========================================="

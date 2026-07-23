@@ -9,8 +9,11 @@ CATALOG = os.environ.get("CATALOG", "")
 SCHEMA = os.environ.get("SCHEMA", "med_logistics_nba")
 WAREHOUSE_ID = os.environ.get("DATABRICKS_WAREHOUSE_ID", "")
 VECTOR_ENDPOINT = os.environ.get("VECTOR_SEARCH_ENDPOINT", "")
+# Canonical LLM defaults — must match variables.yml / resources/apps.yml.
+# Orchestrator = fast intent routing / supervisor; RAG/Analyst = high-quality analysis.
 LLM_MODEL = os.environ.get("LLM_MODEL_RAG", "databricks-claude-sonnet-4-5")
-LLM_ORCHESTRATOR = os.environ.get("LLM_MODEL_ORCHESTRATOR", LLM_MODEL)
+LLM_ORCHESTRATOR = os.environ.get("LLM_MODEL_ORCHESTRATOR", "databricks-gpt-oss-120b")
+LLM_ANALYST = os.environ.get("LLM_MODEL_ANALYST", LLM_MODEL)
 MLFLOW_EXPERIMENT = os.environ.get("MLFLOW_EXPERIMENT", "/Shared/hospital-control-tower-agent")
 
 MAX_SUPERVISOR_ITERATIONS = 3
@@ -38,19 +41,38 @@ def get_workspace_client():
     return _workspace_client
 
 
+# Critical config: env var name -> consequence if missing. Used by validators below.
+_CRITICAL_CONFIG = {
+    "CATALOG": (CATALOG, "SQL queries will fail"),
+    "SCHEMA": (SCHEMA, "SQL queries will fail"),
+    "DATABRICKS_WAREHOUSE_ID": (WAREHOUSE_ID, "SQL statement execution will fail"),
+    "VECTOR_SEARCH_ENDPOINT": (VECTOR_ENDPOINT, "vector search will fail"),
+}
+
+
+def missing_critical_config():
+    """Return the list of critical env var names that are unset/empty."""
+    return [name for name, (value, _) in _CRITICAL_CONFIG.items() if not value]
+
+
 def validate_config():
-    """Log warnings for missing critical config on startup."""
-    issues = []
-    if not CATALOG:
-        issues.append("CATALOG is empty -- SQL queries will fail")
-    if not SCHEMA:
-        issues.append("SCHEMA is empty -- SQL queries will fail")
-    if not WAREHOUSE_ID:
-        issues.append("DATABRICKS_WAREHOUSE_ID is empty -- SQL statement execution will fail")
-    if not VECTOR_ENDPOINT:
-        issues.append("VECTOR_SEARCH_ENDPOINT is empty -- vector search will fail")
-    for issue in issues:
-        logger.error(f"CONFIG: {issue}")
-    if not issues:
+    """Log the state of critical config on startup. Returns True if all present."""
+    missing = missing_critical_config()
+    for name in missing:
+        _, consequence = _CRITICAL_CONFIG[name]
+        logger.error(f"CONFIG: {name} is empty -- {consequence}")
+    if not missing:
         logger.info(f"Config OK: catalog={CATALOG}, schema={SCHEMA}, warehouse={WAREHOUSE_ID[:8]}...")
-    return len(issues) == 0
+    return not missing
+
+
+def config_error_message():
+    """A single actionable message naming the missing vars, or None if config is complete."""
+    missing = missing_critical_config()
+    if not missing:
+        return None
+    return (
+        "Hospital Control Tower is not configured. Missing required setting(s): "
+        + ", ".join(missing)
+        + ". Set them via BUNDLE_VAR_* (see .databricks-env.sh.example) and redeploy."
+    )

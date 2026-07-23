@@ -1,4 +1,7 @@
-"""Multi-agent deep analysis graph + quick query via LangGraph."""
+"""Multi-agent deep analysis graph + quick query via LangGraph.
+
+NOTE: This is the notebook-accessible copy. The authoritative version is app/agent/graph.py.
+"""
 import os
 import logging
 from typing import Dict, List, Optional, Annotated
@@ -7,7 +10,8 @@ from operator import add
 from databricks_langchain import ChatDatabricks
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
 from typing_extensions import TypedDict
 
 from .tools import (
@@ -19,27 +23,36 @@ from .orchestrator import select_tools_for_context, get_system_prompt_for_contex
 
 logger = logging.getLogger(__name__)
 
-LLM_ORCHESTRATOR = os.environ.get("LLM_MODEL_ORCHESTRATOR", "databricks-gpt-oss-120b")
+LLM_ORCHESTRATOR = os.environ.get("LLM_MODEL_ORCHESTRATOR", "databricks-meta-llama-3-3-70b-instruct")
 LLM_RAG = os.environ.get("LLM_MODEL_RAG", "databricks-claude-sonnet-4-5")
+LLM_ANALYST_MODEL = os.environ.get("LLM_MODEL_ANALYST", LLM_RAG)
 CATALOG = os.environ.get("CATALOG", "")
 SCHEMA = os.environ.get("SCHEMA", "med_logistics_nba")
 
 ANALYSIS_TYPES = ["cost_monitoring", "los_analysis", "ed_performance", "staffing_analysis", "compliance_monitoring"]
 
+# Module-level LLM instances (one per role)
+LLM_MAIN = ChatDatabricks(endpoint=LLM_RAG)
+LLM_SUPERVISOR = ChatDatabricks(endpoint=LLM_ORCHESTRATOR, temperature=0)
+LLM_ANALYST_INSTANCE = ChatDatabricks(endpoint=LLM_ANALYST_MODEL)
+
 
 def get_llm():
-    return ChatDatabricks(endpoint=LLM_RAG)
+    return LLM_MAIN
 
 
 def _execute_query(sql: str) -> dict:
     """Internal SQL execution for prerequisite checks."""
     try:
         from databricks.sdk import WorkspaceClient
+        from databricks.sdk.service.sql import Format, Disposition
         w = WorkspaceClient()
         result = w.statement_execution.execute_statement(
             warehouse_id=WAREHOUSE_ID, statement=sql, wait_timeout="30s",
+            format=Format.JSON_ARRAY, disposition=Disposition.INLINE,
         )
-        if result.status.state.value == "SUCCEEDED":
+        state = result.status.state.value if result.status and result.status.state else "UNKNOWN"
+        if state in ("SUCCEEDED", "CLOSED"):
             if result.result and result.result.data_array:
                 columns = [col.name for col in result.manifest.schema.columns]
                 rows = [dict(zip(columns, row)) for row in result.result.data_array]
@@ -81,10 +94,9 @@ def check_prerequisite_analyses() -> str:
 # ===========================================================================
 
 def create_orchestrator_agent(message: str, user_context: Optional[Dict] = None):
-    tools = select_tools_for_context(message, user_context)
+    tools, intent = select_tools_for_context(message, user_context)
     system_prompt = get_system_prompt_for_context(message, tools, user_context)
-    llm = ChatDatabricks(endpoint=LLM_ORCHESTRATOR)
-    agent = create_react_agent(llm, tools if tools else ORCHESTRATOR_TOOLS)
+    agent = create_react_agent(LLM_MAIN, tools if tools else ORCHESTRATOR_TOOLS)
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=message)]
     result = agent.invoke({"messages": messages})
     response_content = ""
@@ -95,7 +107,7 @@ def create_orchestrator_agent(message: str, user_context: Optional[Dict] = None)
                 response_content = msg.content
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
                 tool_calls_made.extend([tc.get("name", "unknown") for tc in msg.tool_calls])
-    return {"response": response_content, "tool_calls": list(set(tool_calls_made)), "mode": "orchestrator"}
+    return {"response": response_content, "tool_calls": list(set(tool_calls_made)), "mode": "orchestrator", "intent": intent}
 
 
 # ===========================================================================
@@ -177,20 +189,23 @@ Use write_analysis to save key findings."""
 
 
 def supervisor_node(state: DeepAnalysisState) -> dict:
-    """LLM-based router that decides the next step."""
-    llm = get_llm()
-    context_parts = [f"User question: {state['user_query']}"]
-    if state.get("plan"):
-        context_parts.append(f"Plan exists: yes ({state['plan'][:200]}...)")
-    else:
-        context_parts.append("Plan exists: no")
-    context_parts.append("Evidence: gathered" if state.get("retrieved_evidence") else "Evidence: not yet gathered")
-    context_parts.append("Analysis: complete" if state.get("analysis_result") else "Analysis: not complete")
+    """LLM-based router using lightweight model."""
+    try:
+        context_parts = [f"User question: {state['user_query']}"]
+        if state.get("plan"):
+            context_parts.append(f"Plan exists: yes ({state['plan'][:200]}...)")
+        else:
+            context_parts.append("Plan exists: no")
+        context_parts.append("Evidence: gathered" if state.get("retrieved_evidence") else "Evidence: not yet gathered")
+        context_parts.append("Analysis: complete" if state.get("analysis_result") else "Analysis: not complete")
 
-    resp = llm.invoke([SystemMessage(content=SUPERVISOR_PROMPT), HumanMessage(content="\n".join(context_parts))])
-    decision = resp.content.strip().upper().split()[0] if resp.content else "RESPOND"
-    valid = {"CLARIFY", "PLAN", "RETRIEVE", "ANALYZE", "RESPOND"}
-    if decision not in valid:
+        resp = LLM_SUPERVISOR.invoke([SystemMessage(content=SUPERVISOR_PROMPT), HumanMessage(content="\n".join(context_parts))])
+        decision = resp.content.strip().upper().split()[0] if resp.content else "RESPOND"
+        valid = {"CLARIFY", "PLAN", "RETRIEVE", "ANALYZE", "RESPOND"}
+        if decision not in valid:
+            decision = "RESPOND"
+    except Exception as e:
+        logger.error(f"Supervisor error: {e}")
         decision = "RESPOND"
 
     if len(state.get("iteration", [])) >= 3:
@@ -205,15 +220,13 @@ def supervisor_node(state: DeepAnalysisState) -> dict:
 
 
 def planner_node(state: DeepAnalysisState) -> dict:
-    llm = get_llm()
     context = f"User question: {state['user_query']}\n\n{state.get('prerequisite_status', 'Prerequisite status unknown.')}"
-    resp = llm.invoke([SystemMessage(content=PLANNER_PROMPT), HumanMessage(content=context)])
+    resp = LLM_MAIN.invoke([SystemMessage(content=PLANNER_PROMPT), HumanMessage(content=context)])
     return {"plan": resp.content, "messages": []}
 
 
 def retrieval_node(state: DeepAnalysisState) -> dict:
-    llm = get_llm()
-    agent = create_react_agent(llm, [execute_sql, search_encounters])
+    agent = create_react_agent(LLM_MAIN, [execute_sql, search_encounters])
     prompt = f"Execute this data-gathering plan:\n\n{state.get('plan', '')}\n\nUser question: {state['user_query']}"
     result = agent.invoke({"messages": [SystemMessage(content=RETRIEVAL_PROMPT), HumanMessage(content=prompt)]})
     evidence = ""
@@ -228,8 +241,8 @@ def retrieval_node(state: DeepAnalysisState) -> dict:
 
 
 def analyst_node(state: DeepAnalysisState) -> dict:
-    llm = get_llm()
-    agent = create_react_agent(llm, [write_analysis])
+    """Analyst uses a more capable model."""
+    agent = create_react_agent(LLM_ANALYST_INSTANCE, [write_analysis])
     context = (
         f"User question: {state['user_query']}\n\n"
         f"Plan:\n{state.get('plan', 'N/A')}\n\n"
@@ -253,8 +266,7 @@ def respond_node(state: DeepAnalysisState) -> dict:
         return {"messages": [AIMessage(content=state.get("clarification_question", "Could you clarify your question?"))]}
     if state.get("analysis_result"):
         return {"messages": [AIMessage(content=state["analysis_result"])]}
-    llm = get_llm()
-    resp = llm.invoke([
+    resp = LLM_MAIN.invoke([
         SystemMessage(content="Summarize what you know so far and explain that a complete analysis could not be finished."),
         HumanMessage(content=f"Question: {state['user_query']}\nEvidence: {state.get('retrieved_evidence', 'none')}"),
     ])
@@ -262,8 +274,7 @@ def respond_node(state: DeepAnalysisState) -> dict:
 
 
 def clarify_node(state: DeepAnalysisState) -> dict:
-    llm = get_llm()
-    resp = llm.invoke([
+    resp = LLM_MAIN.invoke([
         SystemMessage(content="The user's question is ambiguous. Ask a brief, specific clarifying question."),
         HumanMessage(content=f"User question: {state['user_query']}"),
     ])
@@ -275,6 +286,9 @@ def route_supervisor(state: DeepAnalysisState) -> str:
             "ANALYZE": "analyst", "RESPOND": "respond"}.get(state.get("next_step", "RESPOND"), "respond")
 
 
+_checkpointer = MemorySaver()
+
+
 def build_deep_graph():
     graph = StateGraph(DeepAnalysisState)
     graph.add_node("supervisor", supervisor_node)
@@ -283,35 +297,27 @@ def build_deep_graph():
     graph.add_node("analyst", analyst_node)
     graph.add_node("respond", respond_node)
     graph.add_node("clarify", clarify_node)
-    graph.set_entry_point("supervisor")
+    graph.add_edge(START, "supervisor")
     graph.add_conditional_edges("supervisor", route_supervisor)
     graph.add_edge("planner", "supervisor")
     graph.add_edge("retrieval", "supervisor")
     graph.add_edge("analyst", "supervisor")
     graph.add_edge("clarify", "respond")
     graph.add_edge("respond", END)
-    return graph.compile()
+    return graph.compile(checkpointer=_checkpointer)
 
 
-_deep_graph = None
-
-
-def get_deep_graph():
-    global _deep_graph
-    if _deep_graph is None:
-        _deep_graph = build_deep_graph()
-    return _deep_graph
+DEEP_GRAPH = build_deep_graph()
 
 
 # ===========================================================================
 # Public API
 # ===========================================================================
 
-def invoke_rag_agent(message: str, history: Optional[List[Dict]] = None) -> Dict:
+def invoke_rag_agent(message: str, history: Optional[List[Dict]] = None,
+                     thread_id: Optional[str] = None) -> Dict:
     try:
-        graph = get_deep_graph()
         prereq_status = check_prerequisite_analyses()
-
         query = message
         if history:
             context_lines = []
@@ -327,7 +333,8 @@ def invoke_rag_agent(message: str, history: Optional[List[Dict]] = None) -> Dict
             "needs_clarification": False, "clarification_question": "",
             "next_step": "", "iteration": [], "tool_calls_made": [],
         }
-        result = graph.invoke(initial_state)
+        config = {"configurable": {"thread_id": thread_id or "default"}}
+        result = DEEP_GRAPH.invoke(initial_state, config=config)
         response_content = ""
         for msg in reversed(result.get("messages", [])):
             if isinstance(msg, AIMessage) and msg.content:
@@ -343,8 +350,8 @@ def invoke_rag_agent(message: str, history: Optional[List[Dict]] = None) -> Dict
 
 
 def invoke_agent(message: str, mode: str = "orchestrator", history: Optional[List[Dict]] = None,
-                 user_context: Optional[Dict] = None) -> Dict:
+                 user_context: Optional[Dict] = None, thread_id: Optional[str] = None) -> Dict:
     if mode == "orchestrator":
         return create_orchestrator_agent(message, user_context)
     else:
-        return invoke_rag_agent(message, history)
+        return invoke_rag_agent(message, history, thread_id=thread_id)

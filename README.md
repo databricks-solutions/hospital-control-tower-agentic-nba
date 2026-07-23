@@ -24,52 +24,56 @@ The app shows:
 
 ### Option 1: One-Command Setup (Recommended)
 
-1. **Configure variables** (required):
+This project is a pure [Databricks Asset Bundle](https://docs.databricks.com/dev-tools/bundles/). All
+config comes from `variables.yml` (committed, no workspace values) plus your local
+`.databricks-env.sh` (gitignored). No files are generated at deploy time.
 
-   Edit `variables.yml` with your workspace-specific values. This file is the single source of configuration -- both `setup.sh` and `deploy.sh` read from it.
+1. **Configure your local values** (once):
 
-   ```yaml
-   # variables.yml -- fill in these fields
-   catalog:
-     default: "your_catalog"
-   schema:
-     default: "med_logistics_nba"
-   warehouse_id:
-     default: "your_warehouse_id"
-   vector_search_endpoint:
-     default: "your_vs_endpoint"
-   ```
-
-   > **Note**: `setup.sh` will prompt for missing values interactively, but those values are only used for that run. If you want `deploy.sh` (redeployment) to work later, you must save them in `variables.yml`.
-
-2. **Run setup**:
    ```bash
-   ./setup.sh dev                    # Uses default CLI auth
-   ./setup.sh dev my-profile         # Uses a named Databricks CLI profile
+   cp .databricks-env.sh.example .databricks-env.sh
+   # edit .databricks-env.sh — set your CLI profile + catalog / warehouse / VS endpoint
    ```
-   This generates `app/app.yaml` and `databricks.yml` from templates, deploys the bundle, generates data, grants permissions, sets up vector search and SOPs, and runs diagnostics.
+
+   `.databricks-env.sh` is gitignored, so your workspace-specific values never get committed.
+   The workspace **host comes from your CLI profile** (`DATABRICKS_CONFIG_PROFILE`) — it is not
+   stored in any tracked file.
+
+2. **Run setup** (first-time provisioning):
+   ```bash
+   source .databricks-env.sh
+   ./setup.sh dev                    # deploy + data + data model + vector search + grants + diagnostics
+   ```
 
    Useful flags:
    ```bash
-   ./setup.sh dev --skip-data        # Skip data generation
-   ./setup.sh dev --skip-to-phase2   # Skip Phase 1 (jobs/data) and redeploy app only
+   ./setup.sh dev --skip-data        # skip the (slow) data generation job
+   ./setup.sh dev --skip-to-app      # only (re)deploy + run the app, skip setup jobs
    ```
 
-3. **Access**: Open your Databricks workspace > **Apps** > `dev-hospital-control-tower`.
+3. **Routine redeploys** (after setup — no script needed):
+   ```bash
+   source .databricks-env.sh
+   databricks bundle deploy -t dev
+   databricks bundle run hospital_ops_app -t dev
+   ```
+
+4. **Access**: Open your Databricks workspace > **Apps** > `dev-hospital-control-tower`.
 
 ### Option 2: Git Folder (No CLI)
 
 1. Clone this repository into a Databricks Git Folder
 2. Run notebooks in order: `00_generate_data.py` -> `01_setup_lakebase.py` -> `06_simplify_data_model.py` -> `02_setup_vector_search.py` -> `05_setup_sop_vector_search.py`
-3. Edit `app/app.yaml` with your catalog, schema, warehouse ID, and vector search endpoint
-4. Deploy the app from the Databricks Apps UI, pointing to `app/` with `app.yaml` as the configuration
-5. Run `03_grant_permissions.py` to grant the app's service principal access to your data
+3. Deploy the app from the Databricks Apps UI, pointing to `app/`. Set the app's environment
+   variables (CATALOG, SCHEMA, DATABRICKS_WAREHOUSE_ID, VECTOR_SEARCH_ENDPOINT, the `LLM_MODEL_*`
+   values, and `MLFLOW_EXPERIMENT`) in the Apps UI — the same names used in `resources/apps.yml`.
+4. Run `03_grant_permissions.py` to grant the app's service principal access to your data
 
 ## Prerequisites
 
 | Tool | Minimum Version | Purpose |
 |------|----------------|---------|
-| [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html) | >= 0.234.0 | Bundle deployment and job management |
+| [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html) | >= 0.240.0 | Bundle deployment and job management |
 | Python | >= 3.10 | Backend and notebooks |
 
 You also need:
@@ -77,6 +81,25 @@ You also need:
 - A **SQL Warehouse** -- set the ID in `variables.yml` (`warehouse_id`)
 - A **Vector Search endpoint** -- created automatically by `02_setup_vector_search.py`, or provide an existing one in `variables.yml`
 - (Optional) A **Lakebase instance** for transactional storage -- see [`docs/LAKEBASE_SETUP.md`](docs/LAKEBASE_SETUP.md)
+
+## SOP grounding
+
+The "Next Best Action" recommendations are grounded in Standard Operating Procedures via the
+`sop_vector_index`. This works **out of the box** — `05_setup_sop_vector_search.py` ingests the
+sample SOPs committed under `data/sop_samples/` (discharge planning, ED throughput, drug cost
+management), so a clean deploy produces grounded recommendations with no manual upload.
+
+To ground on **your own** SOP documents instead, create a `sop_pdfs` table of binary PDFs before
+running the notebook — it detects the table and parses those PDFs with `ai_parse_document`
+instead of the samples:
+
+```sql
+CREATE TABLE IF NOT EXISTS <catalog>.<schema>.sop_pdfs AS
+SELECT path, content
+FROM read_files('/Volumes/<catalog>/<schema>/hospital_sop_documents/*.pdf', format => 'binaryFile');
+```
+
+Then re-run `05_setup_sop_vector_search.py` (or `databricks bundle run setup_sop_vector_search -t dev`).
 
 ## Architecture
 
@@ -208,23 +231,27 @@ hospital_overview (VIEW - derived from dim_encounters)
 | `02_setup_vector_search.py` | Create Vector Search endpoint and encounter similarity index |
 | `03_grant_permissions.py` | Grant Unity Catalog permissions to the app service principal |
 | `04_diagnostic_check.py` | Validate all prerequisites (tables, indexes, endpoints, permissions) |
-| `05_setup_sop_vector_search.py` | Parse SOP documents and create SOP vector search index |
+| `05_setup_sop_vector_search.py` | Build the SOP vector index. Uses the bundled `data/sop_samples/*.txt` files by default; parses a `sop_pdfs` table instead if one exists (see [SOP grounding](#sop-grounding)) |
 | `06_simplify_data_model.py` | Setup and refresh the data model tables and views |
 | `07_generate_batches.py` | Generate incremental data batches for testing |
 | `08_setup_lakebase_migrations.py` | Run Alembic migrations for Lakebase schema |
 
 ## Configuration
 
-Environment variables in `app/app.yaml` (auto-generated by `setup.sh` from `variables.yml`):
+The app's environment variables are declared in `resources/apps.yml` under the app's
+`config.env` block, resolved from `variables.yml` (and your `.databricks-env.sh` overrides) at
+deploy time. There is no generated `app.yaml`.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CATALOG` | Unity Catalog name | -- |
+| `CATALOG` | Unity Catalog name | -- (set in `.databricks-env.sh`) |
 | `SCHEMA` | Schema containing tables | `med_logistics_nba` |
-| `DATABRICKS_WAREHOUSE_ID` | SQL Warehouse ID | -- |
-| `VECTOR_SEARCH_ENDPOINT` | Vector Search endpoint name | -- |
-| `LLM_MODEL_ORCHESTRATOR` | Foundation model for quick query | `databricks-gpt-oss-120b` |
+| `DATABRICKS_WAREHOUSE_ID` | SQL Warehouse ID | -- (set in `.databricks-env.sh`) |
+| `VECTOR_SEARCH_ENDPOINT` | Vector Search endpoint name | -- (set in `.databricks-env.sh`) |
+| `LLM_MODEL_ORCHESTRATOR` | Foundation model for fast routing / supervisor | `databricks-gpt-oss-120b` |
 | `LLM_MODEL_RAG` | Foundation model for deep analysis / RAG | `databricks-claude-sonnet-4-5` |
+| `MLFLOW_EXPERIMENT` | MLflow experiment path for agent traces | `/Shared/hospital-control-tower-agent` |
+| `SEED_ON_STARTUP` | Seed/refresh demo data on app boot | `true` |
 | `AUTONOMOUS_INTERVAL_SECONDS` | How often autonomous mode checks (seconds) | `3600` |
 | `AUTO_START_AUTONOMOUS` | Start autonomous mode on app boot | `false` |
 
@@ -232,13 +259,13 @@ Environment variables in `app/app.yaml` (auto-generated by `setup.sh` from `vari
 
 ```
 hospital-control-tower-agentic-nba/
-  setup.sh                    # One-command setup (recommended entry point)
-  deploy.sh                   # Redeploy app after initial setup
-  databricks.yml.template     # DAB config template (setup.sh generates databricks.yml from this)
-  variables.yml               # Bundle variables -- edit this with your catalog, warehouse, etc.
+  setup.sh                    # First-time provisioning (deploy + jobs); routine redeploys use `databricks bundle deploy`
+  databricks.yml              # Bundle definition (committed; no workspace values, no host)
+  variables.yml               # Bundle variables (committed; generic defaults only — no workspace values)
+  .databricks-env.sh.example  # Template for your local, gitignored env (profile + BUNDLE_VAR_* overrides)
+  resources/apps.yml          # App resource: command + env (config source of truth) + grants
   app/                        # Databricks App (Flask + React)
     api_server.py             #   Flask API server with REST + SSE endpoints
-    app.yaml                  #   App config (auto-generated by setup.sh -- do not edit directly)
     agent/                    #   Agent implementations
       config.py               #     Centralized configuration (env vars, table names, constants)
       orchestrator.py         #     Quick Query mode (ReAct with intent classification)

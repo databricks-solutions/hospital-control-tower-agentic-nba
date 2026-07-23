@@ -18,7 +18,7 @@ const DEFAULT_CAPABILITIES = [
   { id: 'compliance_monitoring', label: 'Compliance Monitoring', enabled: true },
 ]
 
-export default function SettingsPanel({ autonomousStatus, onClose, onSave }) {
+export default function SettingsPanel({ autonomousStatus, appConfig, onClose, onSave }) {
   const [intervalSec, setIntervalSec] = useState(autonomousStatus?.interval_seconds || 3600)
   const [capabilities, setCapabilities] = useState(DEFAULT_CAPABILITIES)
   const [saving, setSaving] = useState(false)
@@ -187,8 +187,42 @@ export default function SettingsPanel({ autonomousStatus, onClose, onSave }) {
               </div>
             </div>
           </div>
+
+          {/* Observability / MLflow tracing */}
+          <div className="border-t border-slate-700/50 pt-5">
+            <label className="text-sm text-slate-400 mb-3 block">Observability</label>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "w-2 h-2 rounded-full",
+                  appConfig?.mlflow_enabled ? "bg-emerald-400" : "bg-red-400"
+                )} />
+                <span className="text-sm text-slate-300">
+                  MLflow tracing {appConfig?.mlflow_enabled ? 'enabled' : 'disabled'}
+                </span>
+              </div>
+              {appConfig?.mlflow_enabled && appConfig?.mlflow_experiment_url ? (
+                <a
+                  href={appConfig.mlflow_experiment_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-slate-700/50 text-amber-300 rounded-lg text-xs font-medium hover:bg-slate-700 transition-all"
+                >
+                  Open traces →
+                </a>
+              ) : null}
+            </div>
+            {!appConfig?.mlflow_enabled && appConfig?.mlflow_disabled_reason && (
+              <p className="text-xs text-red-400/80 mt-2 break-words">
+                {appConfig.mlflow_disabled_reason}
+              </p>
+            )}
+            <p className="text-xs text-slate-500 mt-2">
+              Every Deep Analysis run is traced end-to-end (supervisor, planner, retrieval, analyst) in MLflow.
+            </p>
+          </div>
         </div>
-        
+
         <div className="px-6 py-4 border-t border-slate-700/50 flex justify-end gap-3">
           <button
             onClick={onClose}

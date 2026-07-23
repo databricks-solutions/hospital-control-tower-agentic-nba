@@ -149,3 +149,5 @@ A 15-minute guided demo for presenting Hospital Control Tower to customers. Each
 | Dashboard tiles show "No data" | Run `databricks bundle run generate_data -t dev` or click **Inject Good** to add test data. |
 | Autonomous mode doesn't start | Check the Settings panel -- the interval may be set too high. Set to 1 minute for demos. |
 | App returns 502/503 | The app may be restarting. Wait 30 seconds and refresh. Check Databricks Apps logs if it persists. |
+| Queries return "not configured" (503) | A required setting is missing (CATALOG, SCHEMA, DATABRICKS_WAREHOUSE_ID, or VECTOR_SEARCH_ENDPOINT). Set the matching `BUNDLE_VAR_*` (see `.databricks-env.sh.example`) and redeploy. The exact missing var is named in the error and in the app logs. |
+| Recommendations aren't SOP-grounded | The `sop_vector_index` may be empty or still syncing. Re-run `databricks bundle run setup_sop_vector_search -t dev` and confirm `SELECT count(*) FROM <catalog>.<schema>.sop_chunks > 0`. |

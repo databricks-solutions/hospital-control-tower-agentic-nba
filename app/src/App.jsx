@@ -31,6 +31,7 @@ function App() {
   const [showGuide, setShowGuide] = useState(() => !localStorage.getItem('demo_guide_seen'))
   const [showDocs, setShowDocs] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [appConfig, setAppConfig] = useState(null)
   const toastIdRef = useRef(0)
 
   const addToast = useCallback((message, type = 'success') => {
@@ -69,7 +70,7 @@ function App() {
   useEffect(() => {
     fetchAutonomousStatus()
     fetchHealthScore()
-    fetch('/api/config').catch(() => {})
+    fetch('/api/config').then(r => r.ok ? r.json() : null).then(c => c && setAppConfig(c)).catch(() => {})
     const interval = setInterval(() => {
       fetchAutonomousStatus()
       fetchHealthScore()
@@ -244,6 +245,7 @@ function App() {
       {showSettings && (
         <SettingsPanel
           autonomousStatus={autonomousStatus}
+          appConfig={appConfig}
           onClose={() => setShowSettings(false)}
           onSave={fetchAutonomousStatus}
         />

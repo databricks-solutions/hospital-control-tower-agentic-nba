@@ -5,6 +5,41 @@ resources:
       description: "AI-powered operations intelligence for hospital logistics"
       source_code_path: ../app
 
+      # App runtime command + env live here (not a generated app.yaml), so config
+      # flows from variables.yml -> bundle -> app with a single source of truth.
+      config:
+        command:
+          - sh
+          - -c
+          - pip install -r requirements.txt && npm install && npm run build && gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 600 api_server:app
+        env:
+          - name: DATABRICKS_WAREHOUSE_ID
+            value: ${var.warehouse_id}
+          - name: CATALOG
+            value: ${var.catalog}
+          - name: SCHEMA
+            value: ${var.schema}
+          - name: VECTOR_SEARCH_ENDPOINT
+            value: ${var.vector_search_endpoint}
+          - name: LLM_MODEL_ORCHESTRATOR
+            value: ${var.llm_model_orchestrator}
+          - name: LLM_MODEL_RAG
+            value: ${var.llm_model_rag}
+          - name: MLFLOW_EXPERIMENT
+            value: "/Shared/hospital-control-tower-agent"
+          - name: AUTONOMOUS_INTERVAL_SECONDS
+            value: "3600"
+          - name: AUTO_START_AUTONOMOUS
+            value: "false"
+          - name: SEED_ON_STARTUP
+            value: "true"
+
+      # NOTE: the encounters/SOP vector indexes are intentionally NOT declared as app
+      # resource bindings. A uc_securable binding must resolve at deploy time, which
+      # forces a fragile two-phase deploy (schema must exist before the app can deploy).
+      # Instead, the grant_permissions job grants the app service principal SELECT on
+      # the indexes and CAN_USE on the vector endpoint directly, so the app can deploy
+      # in a single phase and query the indexes via the SDK once they're built.
       resources:
         - name: warehouse_id
           sql_warehouse:
@@ -14,8 +49,3 @@ resources:
           serving_endpoint:
             name: databricks-gte-large-en
             permission: "CAN_QUERY"
-        - name: encounters_index
-          uc_securable:
-            securable_type: TABLE
-            securable_full_name: ${var.catalog}.${var.schema}.encounters_vector_index
-            permission: SELECT

@@ -5,7 +5,9 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install databricks-langchain langgraph langchain-core databricks-vectorsearch -q
+# MAGIC # Pin to the SAME ranges as app/requirements.txt so the diagnostic exercises the
+# MAGIC # versions the app actually runs (langgraph 0.4+ breaks create_react_agent's imports).
+# MAGIC %pip install "databricks-langchain>=0.4.0" "langgraph>=0.3.4,<0.4" "langchain-core>=0.3.0,<0.4" "databricks-vectorsearch>=0.40" -q
 
 # COMMAND ----------
 

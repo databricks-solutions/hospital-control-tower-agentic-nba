@@ -44,6 +44,7 @@ from agent.config import (
     ANALYSIS_TABLE, ENCOUNTERS_TABLE, DRUG_COSTS_TABLE,
     ED_WAIT_TABLE, STAFFING_TABLE,
     get_workspace_client, validate_config,
+    config_error_message, missing_critical_config,
 )
 
 DEMO_MODE = os.environ.get("DEMO_MODE", "true").lower() == "true"
@@ -77,9 +78,25 @@ logger.info(f"  DRUG_COSTS    = {DRUG_COSTS_TABLE!r}")
 logger.info(f"  STAFFING      = {STAFFING_TABLE!r}")
 logger.info(f"  ED_WAIT       = {ED_WAIT_TABLE!r}")
 logger.info(f"  ANALYSIS      = {ANALYSIS_TABLE!r}")
-if not WAREHOUSE_ID:
-    logger.error("WAREHOUSE_ID is EMPTY -- all SQL queries will fail!")
+_CONFIG_ERROR = config_error_message()
+if _CONFIG_ERROR:
+    logger.error("!" * 60)
+    logger.error(f"NOT CONFIGURED: missing {', '.join(missing_critical_config())}")
+    logger.error(_CONFIG_ERROR)
+    logger.error("Query endpoints will return HTTP 503 until this is fixed.")
+    logger.error("!" * 60)
 logger.info("=" * 60)
+
+
+def require_config(f):
+    """Gate an endpoint on complete critical config, returning a clear 503 otherwise."""
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        msg = config_error_message()
+        if msg:
+            return jsonify({"error": msg, "missing_config": missing_critical_config()}), 503
+        return f(*args, **kwargs)
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -272,9 +289,19 @@ def _seed_baseline_if_needed():
         logger.warning(f"SEED: Failed to seed baseline data: {e}")
 
 
-# Run startup initialization
+# Run startup initialization.
+# The analysis_outputs table is always ensured (cheap DDL, IF NOT EXISTS).
+# Data mutation (baseline seed + date-shift of existing rows) is gated behind
+# SEED_ON_STARTUP so it can be disabled — e.g. against a real/managed dataset you
+# don't want the app rewriting on every boot. Failures here are already non-fatal.
 _ensure_analysis_table()
-_seed_baseline_if_needed()
+
+SEED_ON_STARTUP = os.environ.get("SEED_ON_STARTUP", "true").lower() == "true"
+if SEED_ON_STARTUP:
+    logger.info("SEED_ON_STARTUP=true — checking/seeding demo data")
+    _seed_baseline_if_needed()
+else:
+    logger.info("SEED_ON_STARTUP=false — skipping startup data seed/date-shift (no data mutation)")
 
 
 def load_agent():
@@ -317,7 +344,7 @@ def health_check():
 
 @app.route("/api/config", methods=["GET"])
 def get_config():
-    from agent.graph import MLFLOW_ENABLED, MLFLOW_EXPERIMENT_ID
+    from agent.graph import MLFLOW_ENABLED, MLFLOW_EXPERIMENT_ID, MLFLOW_DISABLED_REASON
     host = os.environ.get("DATABRICKS_HOST", "")
     exp_url = None
     if host and MLFLOW_EXPERIMENT_ID:
@@ -327,10 +354,15 @@ def get_config():
         "warehouse_id": WAREHOUSE_ID[:8] + "..." if WAREHOUSE_ID else None,
         "mlflow_enabled": MLFLOW_ENABLED,
         "mlflow_experiment_url": exp_url,
+        "mlflow_disabled_reason": MLFLOW_DISABLED_REASON,
+        "configured": not missing_critical_config(),
+        "missing_config": missing_critical_config(),
+        "config_error": config_error_message(),
     })
 
 
 @app.route("/api/agent/chat", methods=["POST"])
+@require_config
 def agent_chat():
     if not load_agent():
         return jsonify({"error": "Agent not available"}), 503
@@ -340,13 +372,14 @@ def agent_chat():
         mode = data.get("mode", "orchestrator")
         history = data.get("history", [])
         stream = data.get("stream", False)
+        thread_id = data.get("thread_id")
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
         if stream and mode == "rag":
-            return _start_deep_task(message, history)
+            return _start_deep_task(message, history, thread_id=thread_id)
 
-        result = _invoke_agent(message=message, mode=mode, history=history)
+        result = _invoke_agent(message=message, mode=mode, history=history, thread_id=thread_id)
         resp = {"response": result.get("response", ""), "tool_calls": result.get("tool_calls", []),
                 "mode": result.get("mode", mode), "timestamp": datetime.utcnow().isoformat()}
         if result.get("intent"):
@@ -357,12 +390,12 @@ def agent_chat():
         return jsonify({"error": str(e)}), 500
 
 
-def _start_deep_task(message, history):
+def _start_deep_task(message, history, thread_id=None):
     """Submit deep analysis as a background task, return task_id for polling."""
     task_id = str(uuid.uuid4())[:12]
     _deep_tasks[task_id] = {"status": "running", "stage": "starting", "created": time.time()}
 
-    progress_queue = _invoke_deep_streaming(message=message, history=history)
+    progress_queue = _invoke_deep_streaming(message=message, history=history, thread_id=thread_id)
 
     def _monitor():
         try:
@@ -408,7 +441,37 @@ def get_deep_task(task_id):
     return jsonify(task)
 
 
+@app.route("/api/agent/stream", methods=["POST"])
+@require_config
+def agent_stream_sse():
+    """SSE endpoint for real-time deep analysis streaming."""
+    if not load_agent():
+        return jsonify({"error": "Agent not available"}), 503
+    data = request.get_json()
+    message = data.get("message", "")
+    history = data.get("history", [])
+    thread_id = data.get("thread_id")
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+
+    progress_queue = _invoke_deep_streaming(message=message, history=history, thread_id=thread_id)
+
+    def generate():
+        while True:
+            try:
+                event = progress_queue.get(timeout=600)
+            except queue.Empty:
+                yield f"data: {json.dumps({'stage': 'error', 'message': 'Timed out'})}\n\n"
+                return
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("stage") in ("done", "error"):
+                return
+
+    return app.response_class(generate(), mimetype="text/event-stream")
+
+
 @app.route("/api/agent/plot", methods=["POST"])
+@require_config
 def agent_plot():
     """Generate a chart specification from an agent response."""
     if not load_agent():

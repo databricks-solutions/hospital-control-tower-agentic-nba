@@ -1,36 +1,84 @@
-"""Pre-agent orchestrator for ChatGPT-style tool selection."""
+"""Pre-agent orchestrator for LLM-based tool selection."""
+import logging
+from enum import Enum
 from typing import List, Dict, Any, Optional
-from .config import CATALOG, SCHEMA
+
+from pydantic import BaseModel, Field
+
+from .config import CATALOG, SCHEMA, LLM_ORCHESTRATOR
 from .tools import execute_sql, search_encounters, search_sops, write_analysis
 
+logger = logging.getLogger(__name__)
 
-SOP_KEYWORDS = [
-    "sop", "procedure", "protocol", "policy", "guideline", "compliance",
-    "threshold", "limit", "allowed", "permitted", "restriction", "rule",
-    "governance", "accreditation", "regulatory", "jcaho", "cms",
-    "what should", "what does the sop say", "what are the rules",
-    "according to", "per our policy", "what is our",
-    "escalation", "staffing ratio", "nurse ratio", "bed capacity",
-    "discharge planning", "readmission prevention", "triage protocol",
-    "formulary", "antibiotic stewardship", "hand hygiene",
-]
+
+class Intent(str, Enum):
+    sop = "sop"
+    analyze = "analyze"
+    query = "query"
+    search = "search"
+    general = "general"
+
+
+class IntentClassification(BaseModel):
+    intent: Intent = Field(description="The classified intent of the user message")
+
+
+_INTENT_TOOLS = {
+    Intent.sop: [execute_sql, search_sops, search_encounters],
+    Intent.analyze: [execute_sql, search_encounters, search_sops, write_analysis],
+    Intent.query: [execute_sql, search_sops],
+    Intent.search: [search_encounters, search_sops],
+    Intent.general: [execute_sql, search_encounters, search_sops],
+}
+
+_classifier_llm = None
+
+
+def _get_classifier():
+    global _classifier_llm
+    if _classifier_llm is None:
+        from databricks_langchain import ChatDatabricks
+        _classifier_llm = ChatDatabricks(
+            endpoint=LLM_ORCHESTRATOR, temperature=0
+        ).with_structured_output(IntentClassification)
+    return _classifier_llm
+
+
+_CLASSIFY_SYSTEM = (
+    "Classify the user message into one intent.\n"
+    "- sop: questions about procedures, policies, guidelines, compliance, thresholds, or regulatory rules\n"
+    "- analyze: requests for analysis, reports, root-cause investigation, recommendations, trends\n"
+    "- query: factual data lookups (counts, averages, totals, lists)\n"
+    "- search: semantic similarity searches for encounters or documents\n"
+    "- general: anything else\n"
+    "Return only the intent."
+)
 
 
 def classify_intent(message: str) -> str:
-    message_lower = message.lower()
-    if any(kw in message_lower for kw in SOP_KEYWORDS):
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage
+        result = _get_classifier().invoke([
+            SystemMessage(content=_CLASSIFY_SYSTEM),
+            HumanMessage(content=message),
+        ])
+        return result.intent.value
+    except Exception as e:
+        logger.warning(f"LLM intent classification failed, falling back to keyword: {e}")
+        return _keyword_fallback(message)
+
+
+def _keyword_fallback(message: str) -> str:
+    """Fallback keyword matcher used when the LLM classifier is unavailable."""
+    ml = message.lower()
+    sop_kw = ["sop", "procedure", "protocol", "policy", "guideline", "compliance", "threshold", "regulatory"]
+    if any(kw in ml for kw in sop_kw):
         return "sop"
-    analyze_keywords = ["analyze", "analysis", "report", "insight", "recommend", "trend", "pattern",
-                       "optimize", "compare", "why", "reduce", "lower", "next best action", "nba",
-                       "root cause", "investigate", "deep dive", "assess", "evaluate", "review"]
-    if any(kw in message_lower for kw in analyze_keywords):
+    if any(kw in ml for kw in ["analyze", "report", "recommend", "trend", "why", "root cause", "nba"]):
         return "analyze"
-    query_keywords = ["how many", "count", "list", "show", "get", "which",
-                     "what is the", "average", "total", "sum", "max", "min"]
-    if any(kw in message_lower for kw in query_keywords):
+    if any(kw in ml for kw in ["how many", "count", "list", "show", "average", "total"]):
         return "query"
-    search_keywords = ["find", "search", "similar", "like", "related", "about", "describe", "explain"]
-    if any(kw in message_lower for kw in search_keywords):
+    if any(kw in ml for kw in ["find", "search", "similar"]):
         return "search"
     return "general"
 
@@ -38,16 +86,8 @@ def classify_intent(message: str) -> str:
 def select_tools_for_context(message: str, user_context: Optional[Dict[str, Any]] = None) -> tuple:
     """Returns (tools_list, intent_string)."""
     intent = classify_intent(message)
-    if intent == "sop":
-        return [execute_sql, search_sops, search_encounters], intent
-    elif intent == "analyze":
-        return [execute_sql, search_encounters, search_sops, write_analysis], intent
-    elif intent == "query":
-        return [execute_sql, search_sops], intent
-    elif intent == "search":
-        return [search_encounters, search_sops], intent
-    else:
-        return [execute_sql, search_encounters, search_sops], intent
+    tools = _INTENT_TOOLS.get(Intent(intent), _INTENT_TOOLS[Intent.general])
+    return tools, intent
 
 
 def get_system_prompt_for_context(message: str, tools: List, user_context: Optional[Dict[str, Any]] = None) -> str:

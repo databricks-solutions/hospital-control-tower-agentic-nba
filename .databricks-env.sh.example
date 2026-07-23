@@ -1,0 +1,15 @@
+# Local deploy environment for the Hospital Control Tower bundle.
+# Copy to .databricks-env.sh (gitignored) and fill in YOUR workspace values.
+# Usage:  source .databricks-env.sh && databricks bundle deploy -t dev
+#
+# Nothing here is committed except this .example — real values live only in the
+# gitignored copy, so tracked files never contain workspace-specific data.
+
+# The Databricks CLI profile whose host/auth this bundle deploys against.
+# The workspace host comes from this profile — do NOT hard-code a host anywhere.
+export DATABRICKS_CONFIG_PROFILE=YOUR_CLI_PROFILE
+
+# DABs variable overrides (map to variables.yml keys via BUNDLE_VAR_<name>)
+export BUNDLE_VAR_catalog=YOUR_CATALOG
+export BUNDLE_VAR_warehouse_id=YOUR_SQL_WAREHOUSE_ID
+export BUNDLE_VAR_vector_search_endpoint=YOUR_VECTOR_SEARCH_ENDPOINT

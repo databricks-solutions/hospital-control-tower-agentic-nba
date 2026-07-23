@@ -11,4 +11,6 @@ dist/
 .github/skills/
 .vscode/
 app/app.yaml
-databricks.yml
+
+# Local deploy env — holds workspace-specific values, never committed.
+.databricks-env.sh
